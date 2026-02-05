@@ -1,20 +1,26 @@
 """
 ComfyUI Veilance Nodes
-Custom nodes including Resolution Selector and String Concatenation functionality.
+Custom nodes including Resolution Selector, String Concatenation, and Prompt Selector functionality.
 """
 
 from .resolution_selector import (
     NODE_CLASS_MAPPINGS as RESOLUTION_SELECTOR_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as RESOLUTION_SELECTOR_DISPLAY_MAPPINGS,
 )
+from .prompt_selector import (
+    NODE_CLASS_MAPPINGS as PROMPT_SELECTOR_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as PROMPT_SELECTOR_DISPLAY_MAPPINGS,
+)
 
 # Combine all node mappings
 NODE_CLASS_MAPPINGS = {
     **RESOLUTION_SELECTOR_MAPPINGS,
+    **PROMPT_SELECTOR_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     **RESOLUTION_SELECTOR_DISPLAY_MAPPINGS,
+    **PROMPT_SELECTOR_DISPLAY_MAPPINGS,
 }
 
 # JavaScript extensions directory

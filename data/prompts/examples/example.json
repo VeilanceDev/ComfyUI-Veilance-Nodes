@@ -1,0 +1,17 @@
+[
+    {
+        "name": "Watercolor Painting",
+        "positive": "watercolor art style, soft edges, flowing colors, paper texture",
+        "negative": "digital art, sharp lines, photorealistic"
+    },
+    {
+        "name": "Pixel Art",
+        "positive": "pixel art, 16-bit style, retro game aesthetic, limited color palette",
+        "negative": "high resolution, photorealistic, smooth gradients"
+    },
+    {
+        "name": "Sketch Style",
+        "positive": "pencil sketch, hand-drawn, cross-hatching, paper texture",
+        "negative": "colored, digital, painted"
+    }
+]

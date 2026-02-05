@@ -1,0 +1,39 @@
+- name: anime
+  positive: anime style, vibrant colors, clean lines, expressive eyes
+  negative: photorealistic, 3d render, western style
+
+- name: oil painting
+  positive: oil painting style, thick brushstrokes, rich colors, textured canvas
+  negative: digital art, flat colors, anime
+
+- name: watercolor
+  positive: watercolor painting, soft washes, delicate gradients, paper texture
+  negative: oil painting, heavy strokes, digital
+
+- name: digital art
+  positive: digital art style, clean lines, vibrant colors, high detail
+  negative: traditional media, paper texture
+
+- name: photography
+  positive: photorealistic, 8k uhd, high detail, professional photography
+  negative: illustration, cartoon, anime, drawing
+
+- name: pencil sketch
+  positive: pencil sketch, graphite, detailed linework, shading
+  negative: color, painted, digital
+
+- name: concept art
+  positive: concept art style, dynamic composition, environmental design
+  negative: photograph, realistic
+
+- name: pixel art
+  positive: pixel art style, retro, 8-bit aesthetics, limited color palette
+  negative: high resolution, smooth gradients
+
+- name: 3d render
+  positive: 3d render, octane render, highly detailed, volumetric lighting
+  negative: 2d, flat, illustration
+
+- name: comic book
+  positive: comic book style, bold outlines, halftone dots, dynamic action
+  negative: photorealistic, muted colors

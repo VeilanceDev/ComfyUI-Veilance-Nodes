@@ -1,0 +1,15 @@
+- name: beach
+  positive: on a peaceful tropical beach with crystal clear water and white sand
+  negative: snow, winter, cold, urban
+
+- name: city
+  positive: in a bustling modern city with skyscrapers and neon lights at night
+  negative: nature, forest, rural, countryside
+
+- name: desert
+  positive: in an endless desert with golden sand dunes and a setting sun
+  negative: water, ocean, forest, green
+
+- name: space
+  positive: floating in outer space with distant galaxies and nebulae
+  negative: earth, ground, indoor, nature

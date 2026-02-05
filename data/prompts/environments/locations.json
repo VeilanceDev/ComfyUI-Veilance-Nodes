@@ -1,0 +1,17 @@
+[
+    {
+        "name": "Cyberpunk City",
+        "positive": "neon lights, rain-soaked streets, holographic advertisements, dystopian future cityscape",
+        "negative": "nature, rural, bright daylight"
+    },
+    {
+        "name": "Fantasy Forest",
+        "positive": "enchanted forest, magical lighting, ancient trees, mystical atmosphere, fairy tale",
+        "negative": "urban, modern, technology"
+    },
+    {
+        "name": "Space Station",
+        "positive": "futuristic space station interior, sci-fi, zero gravity, high-tech panels, stars visible through windows",
+        "negative": "earth, nature, outdoors"
+    }
+]

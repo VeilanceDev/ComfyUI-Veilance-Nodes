@@ -1,0 +1,39 @@
+- name: dog
+  positive: a brown haired german shepherd with alert ears and intelligent eyes
+  negative: blurry, low quality, deformed
+
+- name: cat
+  positive: a fluffy orange tabby cat with green eyes curled up
+  negative: blurry, low quality, deformed
+
+- name: wolf
+  positive: a majestic gray wolf with piercing yellow eyes
+  negative: blurry, low quality, deformed
+
+- name: fox
+  positive: a red fox with a bushy white-tipped tail
+  negative: blurry, low quality, deformed
+
+- name: owl
+  positive: a wise great horned owl perched on a branch
+  negative: blurry, low quality, deformed
+
+- name: eagle
+  positive: a bald eagle soaring with wings spread wide
+  negative: blurry, low quality, deformed
+
+- name: lion
+  positive: a regal male lion with a full golden mane
+  negative: blurry, low quality, deformed
+
+- name: tiger
+  positive: a powerful bengal tiger with striking orange and black stripes
+  negative: blurry, low quality, deformed
+
+- name: bear
+  positive: a large brown bear standing in a forest clearing
+  negative: blurry, low quality, deformed
+
+- name: rabbit
+  positive: a small white rabbit with long floppy ears
+  negative: blurry, low quality, deformed
