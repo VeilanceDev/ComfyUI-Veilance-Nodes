@@ -75,7 +75,7 @@ A dynamic node system that generates one node per category folder. Each category
 - [`data/prompts/`](data/prompts/) - Category folders containing prompt files
 
 **Frontend:**
-- [`js/prompt_selector.js`](js/prompt_selector.js) - Searchable dropdowns with keyboard navigation, refresh button, context menu, preview caching/tooltips, and live widget reconciliation
+- [`js/prompt_selector.js`](js/prompt_selector.js) - Searchable dropdowns with keyboard navigation, refresh button, context menu, and live widget reconciliation
 
 **Data Structure:**
 ```
@@ -131,10 +131,10 @@ Display Name,positive prompt,negative prompt,true
 - `negative` (STRING): Combined negative prompts
 
 **Features:**
-- **Preview Tooltip**: Hover over dropdown options to see prompt preview
 - **Favorites**: Mark entries with `favorite: true` to pin them to the top
 - **Auto-Refresh**: Folder watcher automatically reloads when files change (requires `watchdog`)
 - **Searchable Dropdowns**: Type to filter options in any dropdown
+- **Frontend Compatibility Hooks**: Search dialog opens from both canvas widget events and DOM/Vue widget input events
 - **Keyboard Navigation**: Arrow keys to navigate, Enter to select, Escape to close
 - **Hot Category Reload**: Refresh rebuilds prompt-selector node class mappings at runtime
 - **Widget Reconciliation**: Refresh adds/removes/updates combo widgets when prompt files change
@@ -143,7 +143,6 @@ Display Name,positive prompt,negative prompt,true
 
 **API Endpoints:**
 - `POST /prompt_selector/refresh` - Reloads all prompt files, rebuilds node mappings, and returns class add/remove info
-- `GET /prompt_selector/preview` - Get prompt details for tooltip preview
 
 **Category:** `utils/prompts`
 
@@ -156,7 +155,7 @@ Display Name,positive prompt,negative prompt,true
 JavaScript extensions are loaded via `WEB_DIRECTORY = "./js"` in the root `__init__.py`.
 
 Current extensions:
-- `prompt_selector.js` - Searchable dropdowns, refresh button, context menu, preview tooltips
+- `prompt_selector.js` - Searchable dropdowns, refresh button, context menu
 
 ---
 

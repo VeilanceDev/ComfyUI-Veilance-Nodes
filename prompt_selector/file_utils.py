@@ -547,26 +547,6 @@ def get_file_dropdown_options(category: str, filename: str) -> List[str]:
     return [DISABLED_OPTION, RANDOM_OPTION] + options
 
 
-def get_prompt_entry_details(category: str, filename: str, display_name: str) -> Optional[dict]:
-    """
-    Get full details of a prompt entry for preview tooltip.
-    Returns dict with positive, negative, and is_favorite fields.
-    """
-    if display_name in (DISABLED_OPTION, RANDOM_OPTION, "") or not display_name:
-        return None
-    
-    entry = _resolve_entry(category, filename, display_name)
-    if entry:
-        return {
-            "positive": entry.positive_prompt,
-            "negative": entry.negative_prompt,
-            "is_favorite": entry.is_favorite,
-            "display_name": entry.display_name
-        }
-    
-    return None
-
-
 def _resolve_entry(category: str, filename: str, display_name: str) -> Optional[PromptEntry]:
     """
     Resolve a dropdown option value to a PromptEntry.

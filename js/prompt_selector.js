@@ -2,9 +2,14 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const DISABLED_OPTION = "❌ Disabled";
-const RANDOM_OPTION = "🎲 Random";
-const SPECIAL_OPTIONS = new Set([DISABLED_OPTION, RANDOM_OPTION]);
-const previewCache = new Map();
+
+function getNodeClassName(node) {
+    return node?.comfyClass || node?.type || "";
+}
+
+function isPromptSelectorNode(node) {
+    return getNodeClassName(node).startsWith("PromptSelector");
+}
 
 app.registerExtension({
     name: "Veilance.PromptSelector",
@@ -14,7 +19,7 @@ app.registerExtension({
     },
 
     getNodeMenuItems(node) {
-        if (!node.comfyClass?.startsWith("PromptSelector")) {
+        if (!isPromptSelectorNode(node)) {
             return [];
         }
         return [
@@ -28,7 +33,7 @@ app.registerExtension({
     },
 
     async nodeCreated(node) {
-        if (!node.comfyClass?.startsWith("PromptSelector")) {
+        if (!isPromptSelectorNode(node)) {
             return;
         }
 
@@ -52,25 +57,112 @@ function enhanceComboWidgets(node) {
 
     for (const widget of node.widgets) {
         if (widget.type !== "combo") continue;
-        if (widget._searchEnhanced) continue;
-
-        widget._searchEnhanced = true;
-        const originalMouseDown = widget.mouse;
-
         const getValues = () => {
             const values = widget.options?.values;
             if (typeof values === "function") return values();
             return Array.isArray(values) ? values : [];
         };
 
-        widget.mouse = function(event, pos, currentNode) {
-            if (event.type === "mousedown") {
-                showSearchableCombo(widget, getValues(), currentNode);
-                return true;
-            }
-            return originalMouseDown?.call(this, event, pos, currentNode);
-        };
+        attachCanvasComboHandler(widget, node, getValues);
+        attachDomComboHandler(widget, node, getValues);
     }
+}
+
+function attachCanvasComboHandler(widget, node, getValues) {
+    if (widget._searchCanvasEnhanced) return;
+    widget._searchCanvasEnhanced = true;
+
+    const originalMouseDown = widget.mouse;
+    widget.mouse = function(event, pos, currentNode) {
+        const eventType = event?.type;
+        const isPrimaryPress =
+            (eventType === "mousedown" || eventType === "pointerdown") &&
+            (event?.button === undefined || event.button === 0);
+
+        if (isPrimaryPress) {
+            showSearchableCombo(widget, getValues(), currentNode || node);
+            return true;
+        }
+        return originalMouseDown?.call(this, event, pos, currentNode);
+    };
+}
+
+function attachDomComboHandler(widget, node, getValues) {
+    const bind = () => {
+        const inputEl = widget.inputEl;
+        if (!(inputEl instanceof HTMLElement)) {
+            return false;
+        }
+
+        const existingBinding = widget._searchDomBinding;
+        if (existingBinding?.element === inputEl) {
+            return true;
+        }
+
+        if (existingBinding?.element) {
+            existingBinding.element.removeEventListener("pointerdown", existingBinding.pressHandler, true);
+            existingBinding.element.removeEventListener("mousedown", existingBinding.pressHandler, true);
+            existingBinding.element.removeEventListener("keydown", existingBinding.keyHandler, true);
+        }
+
+        const maybeOpenDialog = () => {
+            const now = Date.now();
+            const lastOpen = widget._searchLastOpenTs || 0;
+            if (now - lastOpen < 110) return;
+            widget._searchLastOpenTs = now;
+            showSearchableCombo(widget, getValues(), node);
+        };
+
+        const pressHandler = (event) => {
+            if (typeof event.button === "number" && event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            maybeOpenDialog();
+        };
+
+        const keyHandler = (event) => {
+            if (event.key !== "Enter" && event.key !== " " && event.key !== "ArrowDown") {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            maybeOpenDialog();
+        };
+
+        inputEl.addEventListener("pointerdown", pressHandler, true);
+        inputEl.addEventListener("mousedown", pressHandler, true);
+        inputEl.addEventListener("keydown", keyHandler, true);
+
+        widget._searchDomBinding = {
+            element: inputEl,
+            pressHandler,
+            keyHandler,
+        };
+        return true;
+    };
+
+    if (bind()) {
+        widget._searchDomBindScheduled = false;
+        return;
+    }
+    if (widget._searchDomBindScheduled) return;
+    widget._searchDomBindScheduled = true;
+
+    let attempts = 0;
+    const maxAttempts = 30;
+    const tryBind = () => {
+        if (bind()) {
+            widget._searchDomBindScheduled = false;
+            return;
+        }
+        attempts += 1;
+        if (attempts < maxAttempts) {
+            setTimeout(tryBind, 200);
+            return;
+        }
+        widget._searchDomBindScheduled = false;
+    };
+    tryBind();
 }
 
 function buildTheme() {
@@ -97,7 +189,6 @@ function buildTheme() {
 }
 
 function showSearchableCombo(widget, values, node) {
-    const filename = widget.name;
     const theme = buildTheme();
 
     const overlay = document.createElement("div");
@@ -126,26 +217,6 @@ function showSearchableCombo(widget, values, node) {
         position: relative;
     `;
 
-    const tooltip = document.createElement("div");
-    tooltip.style.cssText = `
-        position: absolute;
-        left: calc(100% + 12px);
-        top: 0;
-        background: ${theme.panelBg};
-        border: 1px solid ${theme.border};
-        border-radius: 8px;
-        padding: 10px;
-        min-width: 280px;
-        width: min(380px, 35vw);
-        max-height: 420px;
-        overflow-y: auto;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-        display: none;
-        font-size: 13px;
-        line-height: 1.35;
-        color: ${theme.text};
-    `;
-
     const searchInput = document.createElement("input");
     searchInput.type = "text";
     searchInput.placeholder = "Type to filter...";
@@ -169,19 +240,11 @@ function showSearchableCombo(widget, values, node) {
         max-height: 440px;
     `;
 
-    let tooltipTimeout = null;
-    let currentPreviewName = null;
     let filteredValues = [];
     let optionElements = [];
     let highlightIndex = -1;
 
     const closeDialog = () => {
-        if (tooltipTimeout) {
-            clearTimeout(tooltipTimeout);
-            tooltipTimeout = null;
-        }
-        tooltip.style.display = "none";
-        currentPreviewName = null;
         if (overlay.parentElement) {
             overlay.parentElement.removeChild(overlay);
         }
@@ -211,77 +274,10 @@ function showSearchableCombo(widget, values, node) {
         }
     };
 
-    const renderPreview = (data) => {
-        let html = "";
-
-        if (data.is_favorite) {
-            html += `<div style="color:#d7a500;margin-bottom:8px;">⭐ Favorite</div>`;
-        }
-        if (data.positive) {
-            html += `
-                <div style="margin-bottom:8px;">
-                    <div style="color:${theme.positiveHeader};font-weight:700;margin-bottom:4px;">Positive</div>
-                    <div style="padding:8px;border-radius:5px;background:${theme.dialogBg};white-space:pre-wrap;">${escapeHtml(data.positive)}</div>
-                </div>
-            `;
-        }
-        if (data.negative) {
-            html += `
-                <div>
-                    <div style="color:${theme.negativeHeader};font-weight:700;margin-bottom:4px;">Negative</div>
-                    <div style="padding:8px;border-radius:5px;background:${theme.dialogBg};white-space:pre-wrap;">${escapeHtml(data.negative)}</div>
-                </div>
-            `;
-        }
-        if (!html) {
-            html = `<div style="color:${theme.muted};font-style:italic;">No prompt data</div>`;
-        }
-
-        tooltip.innerHTML = html;
-        tooltip.style.display = "block";
-    };
-
-    const showPreview = async (displayName) => {
-        if (SPECIAL_OPTIONS.has(displayName)) {
-            tooltip.style.display = "none";
-            currentPreviewName = null;
-            return;
-        }
-        if (currentPreviewName === displayName && tooltip.style.display === "block") {
-            return;
-        }
-
-        const cacheKey = `${node.comfyClass || ""}|${filename}|${displayName}`;
-        if (previewCache.has(cacheKey)) {
-            renderPreview(previewCache.get(cacheKey));
-            currentPreviewName = displayName;
-            return;
-        }
-
-        try {
-            const params = new URLSearchParams({
-                node_class: node.comfyClass || "",
-                filename: filename,
-                display_name: displayName,
-            });
-            const response = await api.fetchApi(`/prompt_selector/preview?${params}`);
-            if (!response.ok) return;
-
-            const data = await response.json();
-            if (data.status !== "ok") return;
-
-            previewCache.set(cacheKey, data);
-            renderPreview(data);
-            currentPreviewName = displayName;
-        } catch (error) {
-            console.warn("[PromptSelector] Preview fetch failed:", error);
-        }
-    };
-
     const commitSelection = (value) => {
         widget.value = value;
         widget.callback?.(value);
-        node.setDirtyCanvas(true, true);
+        node?.setDirtyCanvas?.(true, true);
         closeDialog();
     };
 
@@ -303,7 +299,6 @@ function showSearchableCombo(widget, values, node) {
             `;
             optionsList.appendChild(noResults);
             highlightIndex = -1;
-            tooltip.style.display = "none";
             return;
         }
 
@@ -324,15 +319,6 @@ function showSearchableCombo(widget, values, node) {
             option.addEventListener("mouseenter", () => {
                 const hoverIndex = optionElements.indexOf(option);
                 if (hoverIndex >= 0) setHighlight(hoverIndex, false);
-                if (tooltipTimeout) clearTimeout(tooltipTimeout);
-                tooltipTimeout = setTimeout(() => showPreview(value), 130);
-            });
-
-            option.addEventListener("mouseleave", () => {
-                if (tooltipTimeout) {
-                    clearTimeout(tooltipTimeout);
-                    tooltipTimeout = null;
-                }
             });
 
             option.addEventListener("click", () => commitSelection(value));
@@ -359,16 +345,12 @@ function showSearchableCombo(widget, values, node) {
         if (event.key === "ArrowDown") {
             event.preventDefault();
             setHighlight(highlightIndex + 1);
-            const value = filteredValues[highlightIndex];
-            if (value) showPreview(value);
             return;
         }
 
         if (event.key === "ArrowUp") {
             event.preventDefault();
             setHighlight(highlightIndex - 1);
-            const value = filteredValues[highlightIndex];
-            if (value) showPreview(value);
             return;
         }
 
@@ -392,7 +374,6 @@ function showSearchableCombo(widget, values, node) {
 
     dialog.appendChild(searchInput);
     dialog.appendChild(optionsList);
-    dialog.appendChild(tooltip);
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
 
@@ -525,6 +506,7 @@ async function refreshPromptLists(node) {
     showNotification("🔄 Refreshing prompt lists...", "info");
 
     try {
+        const nodeClass = getNodeClassName(node);
         const response = await api.fetchApi("/prompt_selector/refresh", {
             method: "POST",
         });
@@ -537,16 +519,15 @@ async function refreshPromptLists(node) {
             throw new Error(result.message || "Unknown error");
         }
 
-        previewCache.clear();
         const registryUpdated = await updateGlobalNodeDefinitionsIfNeeded(result);
 
         let desiredCombos = [];
-        const nodeInfoResponse = await api.fetchApi(`/object_info/${node.comfyClass}`);
+        const nodeInfoResponse = await api.fetchApi(`/object_info/${nodeClass}`);
         if (nodeInfoResponse.ok) {
             const nodeInfo = await nodeInfoResponse.json();
-            desiredCombos = getDesiredComboDefinitions(nodeInfo[node.comfyClass]);
+            desiredCombos = getDesiredComboDefinitions(nodeInfo[nodeClass]);
         } else {
-            const classWasRemoved = (result.classes_removed || []).includes(node.comfyClass);
+            const classWasRemoved = (result.classes_removed || []).includes(nodeClass);
             if (!classWasRemoved) {
                 throw new Error("Failed to fetch refreshed node definition");
             }
@@ -601,10 +582,4 @@ function showNotification(message, type = "info") {
     if (window.toast) {
         window.toast(message, { type, timeout: 3500 });
     }
-}
-
-function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
 }

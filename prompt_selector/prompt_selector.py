@@ -11,11 +11,11 @@ from typing import Dict, Set, Tuple
 
 from .file_utils import (
     DISABLED_OPTION,
+    RANDOM_OPTION,
     discover_categories,
     get_all_category_data,
     get_cache_checksum,
     get_file_dropdown_options,
-    get_prompt_entry_details,
     get_prompt_from_file,
     refresh_cache,
     start_file_watcher,
@@ -126,7 +126,15 @@ def create_category_node_class(category_name: str):
 
         @classmethod
         def IS_CHANGED(cls, **kwargs):
-            """Return checksum based on file modification times."""
+            """
+            Return cache checksum, but force re-execution when any dropdown is random.
+
+            ComfyUI caches node outputs when IS_CHANGED is stable. A NaN return value is
+            intentionally never equal to itself, so random selections regenerate each run.
+            """
+            for selected_display in kwargs.values():
+                if selected_display == RANDOM_OPTION:
+                    return float("nan")
             return get_cache_checksum()
 
         def select_prompts(self, separator=", ", **kwargs):
@@ -277,34 +285,6 @@ try:
                     "classes_removed": mapping_info["classes_removed"],
                 }
             )
-        except Exception as e:
-            return web.json_response({"status": "error", "message": str(e)}, status=500)
-
-    @PromptServer.instance.routes.get("/prompt_selector/preview")
-    async def get_prompt_preview(request):
-        """API endpoint to get prompt preview for tooltip."""
-        try:
-            category = request.query.get("category", "")
-            if not category:
-                node_class = request.query.get("node_class", "")
-                category = NODE_CLASS_TO_CATEGORY.get(node_class, "")
-            filename = request.query.get("filename", "")
-            display_name = request.query.get("display_name", "")
-
-            if not all([category, filename, display_name]):
-                return web.json_response(
-                    {"status": "error", "message": "Missing required parameters"},
-                    status=400,
-                )
-
-            details = get_prompt_entry_details(category, filename, display_name)
-            if details is None:
-                return web.json_response(
-                    {"status": "error", "message": "Entry not found"},
-                    status=404,
-                )
-
-            return web.json_response({"status": "ok", **details})
         except Exception as e:
             return web.json_response({"status": "error", "message": str(e)}, status=500)
 
