@@ -1,7 +1,3 @@
-- name: dog
-  positive: a brown haired german shepherd with alert ears and intelligent eyes
-  negative: blurry, low quality, deformed
-
 - name: cat
   positive: a fluffy orange tabby cat with green eyes curled up
   negative: blurry, low quality, deformed
@@ -20,10 +16,6 @@
 
 - name: eagle
   positive: a bald eagle soaring with wings spread wide
-  negative: blurry, low quality, deformed
-
-- name: lion
-  positive: a regal male lion with a full golden mane
   negative: blurry, low quality, deformed
 
 - name: tiger

@@ -1,4 +1,4 @@
-name,positive,negative
-Cinematic Shot,"cinematic lighting, film grain, movie scene, dramatic","amateur, phone photo, flat lighting"
-Studio Portrait,"professional studio lighting, clean background, high resolution","outdoor, natural light, messy background"
-Anime Style,"anime art style, vibrant colors, cel shading","realistic, photograph, 3d render"
+name,positive,negative,favorite
+Cinematic Shot,"cinematic lighting, film grain, movie scene, dramatic","amateur, phone photo, flat lighting",true
+Studio Portrait,"professional studio lighting, clean background, high resolution","outdoor, natural light, messy background",
+Anime Style,"anime art style, vibrant colors, cel shading","realistic, photograph, 3d render",true

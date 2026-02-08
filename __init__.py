@@ -1,6 +1,6 @@
 """
 ComfyUI Veilance Nodes
-Custom nodes including Resolution Selector, String Concatenation, and Prompt Selector functionality.
+Custom nodes including Resolution Selector and Prompt Selector functionality.
 """
 
 from .resolution_selector import (

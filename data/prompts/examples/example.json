@@ -2,7 +2,8 @@
     {
         "name": "Watercolor Painting",
         "positive": "watercolor art style, soft edges, flowing colors, paper texture",
-        "negative": "digital art, sharp lines, photorealistic"
+        "negative": "digital art, sharp lines, photorealistic",
+        "favorite": true
     },
     {
         "name": "Pixel Art",
@@ -12,6 +13,7 @@
     {
         "name": "Sketch Style",
         "positive": "pencil sketch, hand-drawn, cross-hatching, paper texture",
-        "negative": "colored, digital, painted"
+        "negative": "colored, digital, painted",
+        "favorite": true
     }
 ]

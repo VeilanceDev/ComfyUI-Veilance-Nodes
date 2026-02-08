@@ -1,0 +1,22 @@
+name,positive,negative,favorite
+DSLR Photography,"Photo captured with a DSLR camera, shallow depth of field, large sensor clarity, natural optical blur, crisp edge definition, controlled exposure, and balanced tonal range across the frame.",,false
+Mirrorless Camera,"Photo taken using a mirrorless camera, high dynamic range, clean sensor rendering, precise autofocus sharpness, compact optical character, smooth background separation, and accurate color reproduction.",,false
+Analog Film Photo,"Photo shot on analog film, visible grain structure, gentle contrast rolloff, soft highlight bloom, organic tonal transitions, slight exposure imperfections, and chemically derived image texture.",,false
+35mm Film Look,"Photo captured on 35mm film, pronounced grain, moderate contrast, subtle vignetting, optical softness at edges, natural color shifts, and physical film texture across the image.",,false
+Medium Format Film,"Photo taken with medium format film, extremely fine grain, broad tonal depth, smooth gradients, high detail retention, minimal distortion, and a physically large negative appearance.",,false
+Large Format Camera,"Photo produced using a large format camera, exceptional detail resolution, precise perspective control, extended tonal range, minimal distortion, and extremely shallow optical imperfections.",,false
+iPhone Camera,"Photo captured with an iPhone camera, compact sensor characteristics, computational sharpening, balanced exposure, clean noise reduction, wide lens perspective, and evenly lit digital clarity.",,false
+Android Smartphone Photo,"Photo taken on an Android smartphone, high contrast processing, strong HDR effect, digitally enhanced sharpness, wide-angle lens distortion, and evenly exposed modern mobile aesthetics.",,false
+Point-and-Shoot Camera,"Photo captured with a point-and-shoot camera, deep depth of field, small sensor grain, uniform focus, direct flash balance, and straightforward consumer digital rendering.",,false
+Studio Flash Photo,"Photo lit with studio flash, hard-edged shadows, even exposure, controlled highlights, high subject clarity, minimal motion blur, and precise artificial lighting distribution.",,false
+On-Camera Flash,"Photo taken using on-camera flash, flattened lighting, sharp foreground illumination, strong shadow falloff, reflective highlights, and direct light centered on the subject.",,false
+Natural Window Light,"Photo captured using natural window light, soft directional illumination, gradual shadow transitions, realistic contrast, ambient brightness variation, and gently diffused highlights.",,false
+Golden Hour Photo,"Photo shot during golden hour, warm directional sunlight, elongated shadows, soft contrast, glowing highlights, atmospheric haze, and naturally saturated color tones.",,false
+Low-Light Photography,"Photo captured in low-light conditions, visible sensor noise, high ISO grain, deep shadows, selective illumination, reduced contrast, and localized highlight emphasis.",,false
+Night Photography,"Photo taken at night, dark dominant tones, isolated light sources, high contrast regions, controlled exposure highlights, deep shadow areas, and extended dynamic range handling.",,false
+Long Exposure Photo,"Photo created with long exposure, motion-blurred elements, smooth light trails, stabilized static forms, even tonal blending, and extended time-based visual accumulation.",,false
+High-Speed Photography,"Photo captured with high-speed settings, frozen motion detail, crisp edges, minimal blur, precise timing, controlled lighting, and sharply defined transient forms.",,false
+Macro Photography,"Photo taken with macro setup, extreme close focus, shallow depth of field, enlarged surface detail, optical falloff, precise focal plane, and highly magnified textures.",,false
+Wide-Angle Lens,"Photo captured using a wide-angle lens, expanded field of view, perspective exaggeration, edge stretching, deep focus range, and strong spatial distortion cues.",,false
+Telephoto Lens,"Photo taken with a telephoto lens, compressed perspective, narrow field of view, strong background blur, subject isolation, flattened depth cues, and distant focal clarity.",,false
+Fisheye Lens,"Photo captured using a fisheye lens, extreme wide-angle distortion, circular image framing, pronounced barrel distortion, exaggerated perspective, and a unique spherical visual effect.",,false

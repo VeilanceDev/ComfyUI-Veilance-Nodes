@@ -1,14 +1,16 @@
 # Example YAML Prompt File
 # This folder is excluded from node generation - it's for reference only.
 
-# Each entry can have: name, positive, negative
+# Each entry can have: name, positive, negative, favorite
 # - name: Display name shown in dropdown (optional, falls back to positive)
 # - positive: Positive prompt text
 # - negative: Negative prompt text (optional)
+# - favorite: true/false - favorites appear first in dropdown with ⭐ (optional)
 
 - name: Cyberpunk Portrait
   positive: cyberpunk style, neon lights, futuristic city background, high detail
   negative: blurry, low quality, simple background
+  favorite: true
 
 - name: Fantasy Warrior
   positive: fantasy art, medieval warrior, epic armor, dramatic lighting
@@ -17,3 +19,7 @@
 # You can also omit the name field - it will use positive as the display name
 - positive: oil painting style, classical art, museum quality
   negative: digital art, 3d render
+
+# Minimal entry - just the positive prompt
+- positive: anime style, vibrant colors, clean lines
+  favorite: true

@@ -41,18 +41,23 @@ node_name/
 
 **Location:** [`resolution_selector/`](resolution_selector/)
 
-A utility node that calculates width and height dimensions based on a base resolution and aspect ratio, maintaining constant total pixel count.
+A utility node that calculates width and height dimensions based on a target pixel budget (`base_resolution²`) and aspect ratio, with configurable alignment and model-aware sizing profiles.
 
 **Files:**
 - [`resolution_selector.py`](resolution_selector/resolution_selector.py) - Node implementation
 
 **Inputs:**
 - `base_resolution` (INT): Base resolution (default: 1024, range: 64-8192, step: 64)
-- `aspect_ratio` (COMBO): Predefined aspect ratios (1:1, 16:9, 4:3, etc.)
+- `aspect_ratio` (COMBO): Predefined ratios plus `custom`
+- `custom_ratio_width` (INT): Custom ratio width component when `aspect_ratio = custom`
+- `custom_ratio_height` (INT): Custom ratio height component when `aspect_ratio = custom`
 
 **Outputs:**
-- `width` (INT): Calculated width (rounded to nearest multiple of 8)
-- `height` (INT): Calculated height (rounded to nearest multiple of 8)
+- `width` (INT): Calculated width (aligned and profile-clamped)
+- `height` (INT): Calculated height (aligned and profile-clamped)
+- `megapixels` (FLOAT): Actual output megapixels
+- `aspect_ratio_actual` (STRING): Reduced ratio string from the final dimensions (e.g., `16:9`)
+- `pixel_delta` (INT): `width*height - base_resolution²`
 
 **Category:** `utils`
 
@@ -67,10 +72,10 @@ A dynamic node system that generates one node per category folder. Each category
 **Files:**
 - [`prompt_selector.py`](prompt_selector/prompt_selector.py) - Node factory and API route registration
 - [`file_utils.py`](prompt_selector/file_utils.py) - File loading utilities for YAML/CSV/JSON parsing
-- [`data/`](prompt_selector/data/) - Category folders containing prompt files
+- [`data/prompts/`](data/prompts/) - Category folders containing prompt files
 
 **Frontend:**
-- [`js/prompt_selector.js`](js/prompt_selector.js) - Adds refresh button, context menu item, and searchable dropdowns
+- [`js/prompt_selector.js`](js/prompt_selector.js) - Searchable dropdowns with keyboard navigation, refresh button, context menu, preview caching/tooltips, and live widget reconciliation
 
 **Data Structure:**
 ```
@@ -84,7 +89,7 @@ data/prompts/                      # Main prompts directory (project root)
 │   ├── file2.csv
 │   ├── file3.json
 │   └── subcategory/               # Nested subcategories supported
-│       └── nested.yaml            # Creates "category_name_subcategory" node
+│       └── nested.yaml            # Creates "category_name/subcategory" node
 └── another_category/
     └── ...
 ```
@@ -96,18 +101,19 @@ data/prompts/                      # Main prompts directory (project root)
 - name: Display Name           # Optional, falls back to positive
   positive: positive prompt    # Required
   negative: negative prompt    # Optional
+  favorite: true               # Optional, shows ⭐ and appears first
 ```
 
 **CSV (.csv):**
 ```
-name,positive,negative
-Display Name,positive prompt,negative prompt
+name,positive,negative,favorite
+Display Name,positive prompt,negative prompt,true
 ```
 
 **JSON (.json):**
 ```json
 [
-  {"name": "Display Name", "positive": "positive prompt", "negative": "negative prompt"}
+  {"name": "Display Name", "positive": "...", "negative": "...", "favorite": true}
 ]
 ```
 
@@ -118,13 +124,26 @@ Display Name,positive prompt,negative prompt
 **Special Dropdown Options:**
 - `❌ Disabled` - Skip this file (default)
 - `🎲 Random` - Select a random prompt from this file
+- `⭐ [name]` - Favorites appear first in the dropdown
 
 **Outputs:**
 - `positive` (STRING): Combined positive prompts
 - `negative` (STRING): Combined negative prompts
 
-**API Endpoint:**
-- `POST /prompt_selector/refresh` - Reloads all prompt files from disk
+**Features:**
+- **Preview Tooltip**: Hover over dropdown options to see prompt preview
+- **Favorites**: Mark entries with `favorite: true` to pin them to the top
+- **Auto-Refresh**: Folder watcher automatically reloads when files change (requires `watchdog`)
+- **Searchable Dropdowns**: Type to filter options in any dropdown
+- **Keyboard Navigation**: Arrow keys to navigate, Enter to select, Escape to close
+- **Hot Category Reload**: Refresh rebuilds prompt-selector node class mappings at runtime
+- **Widget Reconciliation**: Refresh adds/removes/updates combo widgets when prompt files change
+- **Collision-Safe File Keys**: Files with the same stem but different extensions are disambiguated (e.g., `style [yaml]`, `style [json]`)
+- **Thread-Safe Caching**: Prompt cache/index updates are synchronized for watcher + execution safety
+
+**API Endpoints:**
+- `POST /prompt_selector/refresh` - Reloads all prompt files, rebuilds node mappings, and returns class add/remove info
+- `GET /prompt_selector/preview` - Get prompt details for tooltip preview
 
 **Category:** `utils/prompts`
 
@@ -137,14 +156,15 @@ Display Name,positive prompt,negative prompt
 JavaScript extensions are loaded via `WEB_DIRECTORY = "./js"` in the root `__init__.py`.
 
 Current extensions:
-- `prompt_selector.js` - Adds refresh button widget and context menu option to Prompt Selector nodes
+- `prompt_selector.js` - Searchable dropdowns, refresh button, context menu, preview tooltips
 
 ---
 
 ## Dependencies
 
 See [`requirements.txt`](requirements.txt):
-- `pyyaml>=6.0` - For YAML file parsing (optional, CSV works without it)
+- `pyyaml>=6.0` - For YAML file parsing (optional, CSV/JSON work without it)
+- `watchdog>=3.0` - For auto-refresh on file changes (optional)
 
 ---
 
