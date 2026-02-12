@@ -37,6 +37,135 @@ node_name/
 
 ## Current Nodes
 
+### Model Loader Trio
+
+**Location:** [`model_loader_trio/`](model_loader_trio/)
+
+A convenience loader node that combines ComfyUI's built-in model loaders into one node and outputs all three model types together.
+
+**Files:**
+- [`model_loader_trio.py`](model_loader_trio/model_loader_trio.py) - Node implementation
+
+**Inputs:**
+- `diffusion_model` (COMBO): Diffusion model selection (same source/options as built-in `Load Diffusion Model`)
+- `diffusion_weight_dtype` (COMBO, when available): Weight dtype selection for diffusion model loading
+- `clip_model` (COMBO): CLIP model selection (same source/options as built-in `Load CLIP`)
+- `clip_type` (COMBO, when available): CLIP type selection
+- `clip_device` (COMBO): CLIP device selection
+- `vae_model` (COMBO): VAE model selection (same source/options as built-in `Load VAE`)
+- `pipe` (PIPE, optional): Incoming pipe passthrough; first 3 fields are replaced with this node's loaded `model`, `clip`, `vae`
+
+**Outputs:**
+- `pipe` (PIPE): Pipe tuple `(model, clip, vae, ...)` (preserves incoming tail fields after index 3)
+- `model` (MODEL): Loaded diffusion model
+- `clip` (CLIP): Loaded CLIP model
+- `vae` (VAE): Loaded VAE model
+
+**Category:** `loaders`
+
+---
+
+### Model Loader Trio + Params
+
+**Location:** [`model_loader_trio/`](model_loader_trio/)
+
+A combined model loader node with extra workflow widgets for prompt and latent setup.
+
+**Files:**
+- [`model_loader_trio.py`](model_loader_trio/model_loader_trio.py) - Node implementation
+
+**Inputs:**
+- `diffusion_model` (COMBO): Diffusion model selection
+- `diffusion_weight_dtype` (COMBO, when available): Weight dtype selection
+- `clip_model` (COMBO): CLIP model selection
+- `clip_type` (COMBO, when available): CLIP type selection
+- `clip_device` (COMBO): CLIP device selection
+- `vae_model` (COMBO): VAE model selection
+- `width` (INT): Width widget (default: 1024)
+- `height` (INT): Height widget (default: 1024)
+- `positive_prompt` (STRING): Positive prompt text
+- `negative_prompt` (STRING): Negative prompt text
+- `batch_size` (INT): Batch size widget (default: 1)
+- `pipe` (PIPE, optional): Incoming pipe passthrough; first 6 fields are replaced with this node's outputs
+
+**Outputs:**
+- `pipe` (PIPE): Pipe tuple `(model, clip, vae, positive_conditioning, negative_conditioning, latent_image, ...)` (preserves incoming tail fields after index 6)
+- `model` (MODEL): Loaded diffusion model
+- `clip` (CLIP): Loaded CLIP model
+- `vae` (VAE): Loaded VAE model
+- `positive_conditioning` (CONDITIONING): CLIP-encoded conditioning from `positive_prompt`
+- `negative_conditioning` (CONDITIONING): CLIP-encoded conditioning from `negative_prompt`
+- `latent_image` (LATENT): Empty latent initialized from `width`, `height`, and `batch_size`
+
+**Category:** `loaders`
+
+---
+
+### KSampler (Pipe Full)
+
+**Location:** [`pipe_ksampler/`](pipe_ksampler/)
+
+A pipe-aware sampler node that wraps ComfyUI's built-in `KSampler`, supports latent fallback from `pipe`, optional image-to-latent encoding via VAE, and returns both updated `pipe` and decoded image output.
+
+**Files:**
+- [`pipe_ksampler.py`](pipe_ksampler/pipe_ksampler.py) - Node implementation
+
+**Inputs:**
+- `steps` (INT): Sampling step count
+- `cfg` (FLOAT): Classifier-free guidance scale
+- `sampler_name` (COMBO): Sampler algorithm selection (from built-in `KSampler`)
+- `scheduler` (COMBO): Scheduler selection (from built-in `KSampler`)
+- `denoise` (FLOAT): Denoise strength
+- `image_output` (COMBO): `Preview` or `Hide` preview behavior
+- `seed` (INT): Sampling seed (with control-after-generate support)
+- `pipe` (PIPE, optional): Pipe fallback source
+- `model` (MODEL, optional): Overrides `pipe[0]`
+- `positive` (CONDITIONING, optional): Overrides `pipe[3]`
+- `negative` (CONDITIONING, optional): Overrides `pipe[4]`
+- `latent` (LATENT, optional): Overrides `pipe[5]`
+- `vae` (VAE, optional): Overrides `pipe[2]` and is used for decode/encode
+- `clip` (CLIP, optional): Overrides `pipe[1]`
+- `xyPlot` (XYPLOT, optional): Compatibility passthrough input
+- `image` (IMAGE, optional): Used for image-to-latent encode when no latent is provided
+
+**Outputs:**
+- `pipe` (PIPE): Pipe tuple `(model, clip, vae, positive, negative, latent, seed, ...)`
+- `image` (IMAGE): VAE-decoded image from sampled latent
+- `model` (MODEL): Effective model used for sampling
+- `positive` (CONDITIONING): Effective positive conditioning
+- `negative` (CONDITIONING): Effective negative conditioning
+- `latent` (LATENT): Sampled latent output
+- `vae` (VAE): Effective VAE used for decode
+- `clip` (CLIP): Effective CLIP passthrough
+- `seed` (INT): Seed used for sampling
+
+**Category:** `sampling`
+
+---
+
+### Prompt Cleaner
+
+**Location:** [`prompt_cleaner/`](prompt_cleaner/)
+
+A utility node for cleaning comma-separated prompt tags with configurable normalization options.
+
+**Files:**
+- [`prompt_cleaner.py`](prompt_cleaner/prompt_cleaner.py) - Node implementation
+
+**Inputs:**
+- `prompt` (STRING): Prompt text to clean
+- `trim_trailing_spaces_commas` (BOOLEAN): Remove trailing spaces/commas and trim tag edges
+- `replace_underscores_with_spaces` (BOOLEAN): Replace `_` with spaces
+- `remove_duplicate_tags` (BOOLEAN): Remove duplicate comma-separated tags while preserving order
+- `convert_to_lowercase` (BOOLEAN): Convert prompt text to lowercase before deduplication
+
+**Outputs:**
+- `cleaned_prompt` (STRING): Cleaned prompt string
+
+**Category:** `utils/prompts`
+
+---
+
 ### Resolution Selector
 
 **Location:** [`resolution_selector/`](resolution_selector/)

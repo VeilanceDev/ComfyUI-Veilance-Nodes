@@ -1,6 +1,6 @@
 """
 ComfyUI Veilance Nodes
-Custom nodes including Resolution Selector and Prompt Selector functionality.
+Custom nodes including model loading, resolution, and prompt selector functionality.
 """
 
 from .resolution_selector import (
@@ -11,16 +11,34 @@ from .prompt_selector import (
     NODE_CLASS_MAPPINGS as PROMPT_SELECTOR_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as PROMPT_SELECTOR_DISPLAY_MAPPINGS,
 )
+from .model_loader_trio import (
+    NODE_CLASS_MAPPINGS as MODEL_LOADER_TRIO_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as MODEL_LOADER_TRIO_DISPLAY_MAPPINGS,
+)
+from .prompt_cleaner import (
+    NODE_CLASS_MAPPINGS as PROMPT_CLEANER_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as PROMPT_CLEANER_DISPLAY_MAPPINGS,
+)
+from .pipe_ksampler import (
+    NODE_CLASS_MAPPINGS as PIPE_KSAMPLER_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as PIPE_KSAMPLER_DISPLAY_MAPPINGS,
+)
 
 # Combine all node mappings
 NODE_CLASS_MAPPINGS = {
     **RESOLUTION_SELECTOR_MAPPINGS,
     **PROMPT_SELECTOR_MAPPINGS,
+    **MODEL_LOADER_TRIO_MAPPINGS,
+    **PROMPT_CLEANER_MAPPINGS,
+    **PIPE_KSAMPLER_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     **RESOLUTION_SELECTOR_DISPLAY_MAPPINGS,
     **PROMPT_SELECTOR_DISPLAY_MAPPINGS,
+    **MODEL_LOADER_TRIO_DISPLAY_MAPPINGS,
+    **PROMPT_CLEANER_DISPLAY_MAPPINGS,
+    **PIPE_KSAMPLER_DISPLAY_MAPPINGS,
 }
 
 # JavaScript extensions directory
