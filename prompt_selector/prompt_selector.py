@@ -55,7 +55,7 @@ class PromptSelectorPlaceholder:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("positive", "negative")
     FUNCTION = "show_message"
-    CATEGORY = "utils/prompts"
+    CATEGORY = "Veilance/Utils/Prompts"
 
     def show_message(self, message):
         return ("", "")
@@ -122,7 +122,7 @@ def create_category_node_class(category_name: str):
         RETURN_TYPES = ("STRING", "STRING")
         RETURN_NAMES = ("positive", "negative")
         FUNCTION = "select_prompts"
-        CATEGORY = "utils/prompts"
+        CATEGORY = "Veilance/Utils/Prompts"
 
         @classmethod
         def IS_CHANGED(cls, **kwargs):

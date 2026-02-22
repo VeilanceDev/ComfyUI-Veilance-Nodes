@@ -21,7 +21,7 @@ class PromptCleaner:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("cleaned_prompt",)
     FUNCTION = "clean_prompt"
-    CATEGORY = "utils/prompts"
+    CATEGORY = "Veilance/Utils/Prompts"
 
     @staticmethod
     def _prepare_text(

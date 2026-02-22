@@ -261,7 +261,7 @@ class PipeKSamplerFull:
         "seed",
     )
     FUNCTION = "sample"
-    CATEGORY = "sampling"
+    CATEGORY = "Veilance/Sampling"
 
     @staticmethod
     def _pipe_item(pipe: Any, index: int) -> Any:

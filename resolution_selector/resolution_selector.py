@@ -71,7 +71,7 @@ class ResolutionSelector:
         "pixel_delta",
     )
     FUNCTION = "calculate_resolution"
-    CATEGORY = "utils"
+    CATEGORY = "Veilance/Utils"
 
     @classmethod
     def _resolve_ratio(

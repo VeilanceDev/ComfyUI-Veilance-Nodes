@@ -376,7 +376,7 @@ class ModelLoaderTrio(_BaseModelLoaderTrio):
     RETURN_TYPES = ("PIPE", "MODEL", "CLIP", "VAE")
     RETURN_NAMES = ("pipe", "model", "clip", "vae")
     FUNCTION = "load_models"
-    CATEGORY = "loaders"
+    CATEGORY = "Veilance/Loaders"
 
     def load_models(
         self,
@@ -435,7 +435,7 @@ class ModelLoaderTrioWithParams(_BaseModelLoaderTrio):
         "latent_image",
     )
     FUNCTION = "load_models_with_params"
-    CATEGORY = "loaders"
+    CATEGORY = "Veilance/Loaders"
 
     def load_models_with_params(
         self,
