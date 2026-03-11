@@ -1,2 +1,3 @@
 pyyaml>=6.0
 watchdog>=3.0  # Optional: enables auto-refresh on file changes
+keyring>=25.0  # Optional: encrypted OS keychain storage for NanoGPT API keys

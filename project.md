@@ -166,6 +166,186 @@ A utility node for cleaning comma-separated prompt tags with configurable normal
 
 ---
 
+### NanoGPT Text Generator
+
+**Location:** [`nano_gpt/`](nano_gpt/)
+
+A text/vision prompt generation node that calls OpenAI-compatible `/chat/completions` endpoints with provider presets, retry handling, and optional image input.
+
+**Files:**
+- [`nano_gpt.py`](nano_gpt/nano_gpt.py) - Node implementation and alias API route registration
+- [`alias_store.py`](nano_gpt/alias_store.py) - Alias persistence + keyring secret handling
+- [`aliases.json`](nano_gpt/aliases.json) - Alias metadata store (non-secret; created on first save)
+
+**Inputs:**
+- `prompt` (STRING): User message text
+- `system_prompt` (STRING): System instruction text
+- `config_mode` (COMBO): `manual` or `alias`
+- `alias_name` (STRING): Alias profile name used when `config_mode = alias`
+- `api_provider` / `custom_api_url` / `api_key` / `model` / sampling controls: Manual-mode settings (legacy behavior)
+- `images` (IMAGE, optional): First batch image is encoded as JPEG data URL and attached to the user message
+
+**Outputs:**
+- `text` (STRING): Model response text
+- `messages_json` (STRING): JSON-serialized messages payload
+- `prompt_echo` (STRING): Input prompt passthrough
+
+**Alias Behavior:**
+- Alias mode resolves provider URL, model, and sampling defaults from alias config
+- Alias `key_source` supports:
+  - `keyring` (OS keychain via Python `keyring`)
+  - `env` (lookup from configured env var name)
+  - `none` (no API key)
+- API keys are never persisted in workflow JSON
+
+**Alias API Endpoints:**
+- `GET /veilance/nano_gpt/aliases`
+- `POST /veilance/nano_gpt/aliases/upsert`
+- `POST /veilance/nano_gpt/aliases/delete`
+
+**Category:** `Veilance/Utils/Prompts`
+
+---
+
+### Save Image (CivitAI Metadata)
+
+**Location:** [`save_image_civitai/`](save_image_civitai/)
+
+An output node that saves image batches as PNG, JPG, or WEBP while embedding CivitAI-compatible generation metadata and optional Comfy workflow metadata.
+
+**Files:**
+- [`save_image_civitai.py`](save_image_civitai/save_image_civitai.py) - Node implementation
+
+**Inputs:**
+- `images` (IMAGE): Image batch to save
+- `output_path` (STRING): Output-relative folder or folder/file path
+- `file_format` (COMBO): `png`, `jpg`, or `webp`
+- `include_workflow` (BOOLEAN): Toggle embedding Comfy prompt/workflow metadata
+- `seed` (INT): Generation seed
+- `steps` (INT): Sampling steps
+- `cfg` (FLOAT): CFG scale
+- `sampler_name` (STRING): Sampler name for metadata
+- `scheduler` (STRING): Scheduler name for metadata
+- `model_name` (STRING): Model name for metadata
+- `vae_name` (STRING): VAE name for metadata
+- `positive_prompt` (STRING): Positive prompt text
+- `negative_prompt` (STRING): Negative prompt text
+- `png_compress_level` (INT): PNG compression level
+- `jpg_quality` (INT): JPG quality
+- `jpg_optimize` (BOOLEAN): JPG optimize toggle
+- `webp_quality` (INT): WEBP quality
+- `webp_lossless` (BOOLEAN): WEBP lossless toggle
+- `webp_method` (INT): WEBP encoder method
+
+**Hidden Inputs:**
+- `prompt` (PROMPT): Comfy prompt graph for workflow embedding
+- `extra_pnginfo` (EXTRA_PNGINFO): Comfy workflow metadata payload
+
+**Outputs:**
+- None (`OUTPUT_NODE = True`) - returns standard ComfyUI saved-image UI payload
+
+**Metadata Behavior:**
+- Always embeds an A1111/CivitAI-style `parameters` payload
+- PNG writes `parameters` plus optional `prompt` and `extra_pnginfo` text chunks
+- JPG/WEBP write EXIF `UserComment` for generation data and optional EXIF `Make` / `ImageDescription` workflow payloads
+- Output path stays inside ComfyUI's output directory and uses core save-path numbering semantics
+
+**Category:** `Veilance/Image`
+
+---
+
+### Film Grain
+
+**Location:** [`film_grain/`](film_grain/)
+
+A torch-first post-processing node that adds adaptive film-style grain with stock presets, deterministic seeded noise, and tone/detail-aware placement so the grain reads more like scanned film than flat digital noise.
+
+**Files:**
+- [`film_grain.py`](film_grain/film_grain.py) - Node implementation and grain synthesis helpers
+
+**Inputs:**
+- `image` (IMAGE): Input image batch
+- `stock` (COMBO): Grain profile preset (`35mm color`, `35mm b&w`, `16mm color`, `pushed 800`)
+- `amount` (FLOAT): Overall grain intensity
+- `grain_size` (FLOAT): Grain size multiplier applied on top of the stock preset
+- `color_amount` (FLOAT): Scales chroma grain contribution for color stocks
+- `seed` (INT): Deterministic grain seed with control-after-generate enabled
+
+**Outputs:**
+- `image` (IMAGE): Image with film grain applied
+
+**Behavior:**
+- Builds grain from multiple seeded noise scales to avoid synthetic flat noise patterns
+- Applies most of the grain as luminance variation, with optional restrained chroma grain for color stocks
+- Adapts grain visibility by luminance and local detail so highlights roll off and busy edges get less grain
+- Keeps output clamped to `[0, 1]` and preserves batch/image tensor shape
+
+**Category:** `Veilance/Image`
+
+---
+
+### Image Sharpen
+
+**Location:** [`image_sharpen/`](image_sharpen/)
+
+A small set of image enhancement nodes for post-processing ComfyUI image tensors with full-frame, unsharp-mask, and edge-aware sharpening.
+
+**Files:**
+- [`image_sharpen.py`](image_sharpen/image_sharpen.py) - Node implementations and shared image-processing helpers
+
+**Nodes:**
+
+#### Sharpen
+
+**Inputs:**
+- `image` (IMAGE): Input image batch
+- `strength` (FLOAT): Blend amount for the fixed 3x3 sharpen kernel
+
+**Outputs:**
+- `image` (IMAGE): Sharpened image batch
+
+**Behavior:**
+- Applies a classic 3x3 sharpen kernel in torch
+- Blends the sharpened result back into the original image using `strength`
+- Short-circuits to the original image when `strength <= 0`
+
+#### Unsharp Mask
+
+**Inputs:**
+- `image` (IMAGE): Input image batch
+- `radius` (FLOAT): Blur radius used to extract detail
+- `amount` (FLOAT): Detail amplification amount
+- `threshold` (FLOAT): Luminance-detail threshold gate in `[0, 1]`
+
+**Outputs:**
+- `image` (IMAGE): Unsharp-masked image batch
+
+**Behavior:**
+- Builds a blurred image using torch Gaussian blur with a Pillow fallback path
+- Computes detail as `image - blurred`
+- Uses luminance-based threshold gating to suppress low-contrast sharpening
+- Short-circuits to the original image when `radius <= 0` or `amount <= 0`
+
+#### Edge Sharpen
+
+**Inputs:**
+- `image` (IMAGE): Input image batch
+- `strength` (FLOAT): Sharpen blend amount
+- `edge_threshold` (FLOAT): Edge activation threshold after Sobel normalization
+- `edge_softness` (FLOAT): Soft threshold falloff width
+
+**Outputs:**
+- `image` (IMAGE): Edge-aware sharpened image batch
+
+**Behavior:**
+- Reuses the fixed sharpen kernel to build a sharpened candidate
+- Detects edges from luminance using Sobel filters
+- Applies sharpening primarily where edge strength exceeds the configured threshold
+
+**Category:** `Veilance/Image/Sharpen`
+
+---
+
 ### Resolution Selector
 
 **Location:** [`resolution_selector/`](resolution_selector/)
@@ -285,6 +465,8 @@ JavaScript extensions are loaded via `WEB_DIRECTORY = "./js"` in the root `__ini
 
 Current extensions:
 - `prompt_selector.js` - Searchable dropdowns, refresh button, context menu
+- `lora_stack.js` - Dynamic visibility for LoRA stack slot widgets
+- `nano_gpt.js` - NanoGPT alias manager dialog + settings integration
 
 ---
 
@@ -293,6 +475,7 @@ Current extensions:
 See [`requirements.txt`](requirements.txt):
 - `pyyaml>=6.0` - For YAML file parsing (optional, CSV/JSON work without it)
 - `watchdog>=3.0` - For auto-refresh on file changes (optional)
+- `keyring>=25.0` - For encrypted OS keychain storage of NanoGPT API keys (optional)
 
 ---
 

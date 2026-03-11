@@ -3,6 +3,8 @@ ComfyUI Veilance Nodes
 Custom nodes including model loading, resolution, and prompt selector functionality.
 """
 
+from importlib import import_module
+
 from .resolution_selector import (
     NODE_CLASS_MAPPINGS as RESOLUTION_SELECTOR_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as RESOLUTION_SELECTOR_DISPLAY_MAPPINGS,
@@ -52,6 +54,33 @@ from .nano_gpt import (
     NODE_DISPLAY_NAME_MAPPINGS as NANO_GPT_DISPLAY_MAPPINGS,
 )
 
+
+def _load_optional_node_package(module_name: str):
+    try:
+        module = import_module(f".{module_name}", __name__)
+    except Exception as exc:
+        print(
+            f"[ComfyUI-Veilance-Nodes] Skipping optional package '{module_name}' "
+            f"because it failed to import: {exc}"
+        )
+        return {}, {}
+
+    return (
+        getattr(module, "NODE_CLASS_MAPPINGS", {}),
+        getattr(module, "NODE_DISPLAY_NAME_MAPPINGS", {}),
+    )
+
+
+SAVE_IMAGE_CIVITAI_MAPPINGS, SAVE_IMAGE_CIVITAI_DISPLAY_MAPPINGS = _load_optional_node_package(
+    "save_image_civitai"
+)
+IMAGE_SHARPEN_MAPPINGS, IMAGE_SHARPEN_DISPLAY_MAPPINGS = _load_optional_node_package(
+    "image_sharpen"
+)
+FILM_GRAIN_MAPPINGS, FILM_GRAIN_DISPLAY_MAPPINGS = _load_optional_node_package(
+    "film_grain"
+)
+
 # Combine all node mappings
 NODE_CLASS_MAPPINGS = {
     **RESOLUTION_SELECTOR_MAPPINGS,
@@ -66,6 +95,9 @@ NODE_CLASS_MAPPINGS = {
     **SEED_STRATEGY_MAPPINGS,
     **LORA_STACK_MAPPINGS,
     **NANO_GPT_MAPPINGS,
+    **SAVE_IMAGE_CIVITAI_MAPPINGS,
+    **IMAGE_SHARPEN_MAPPINGS,
+    **FILM_GRAIN_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -81,6 +113,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **SEED_STRATEGY_DISPLAY_MAPPINGS,
     **LORA_STACK_DISPLAY_MAPPINGS,
     **NANO_GPT_DISPLAY_MAPPINGS,
+    **SAVE_IMAGE_CIVITAI_DISPLAY_MAPPINGS,
+    **IMAGE_SHARPEN_DISPLAY_MAPPINGS,
+    **FILM_GRAIN_DISPLAY_MAPPINGS,
 }
 
 # JavaScript extensions directory

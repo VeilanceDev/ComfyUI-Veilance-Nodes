@@ -27,6 +27,11 @@ pip install -r requirements.txt
 - `Seed Strategy`
 - `LoRA Stack`
 - `NanoGPT Text Generator` (`Veilance/Utils/Prompts`)
+- `Save Image (CivitAI Metadata)` (`Veilance/Image`)
+- `Film Grain` (`Veilance/Image`)
+- `Sharpen` (`Veilance/Image/Sharpen`)
+- `Unsharp Mask` (`Veilance/Image/Sharpen`)
+- `Edge Sharpen` (`Veilance/Image/Sharpen`)
 
 ## Prompt Selector Data
 
@@ -46,10 +51,30 @@ Current extensions:
 
 - `js/prompt_selector.js`
 - `js/lora_stack.js`
+- `js/nano_gpt.js`
+
+## NanoGPT Alias Profiles
+
+`NanoGPT Text Generator` supports two config modes:
+
+- `manual`: use node widget values directly (legacy behavior)
+- `alias`: load provider URL, model, generation defaults, and key source from a saved alias
+
+Alias data model:
+
+- Non-secret alias settings are stored in `nano_gpt/aliases.json`
+- API keys are stored in OS keychain via Python `keyring` (not in workflow JSON)
+- `key_source` can be `keyring`, `env` (from env var name), or `none`
+
+Open the alias manager from:
+
+- ComfyUI Settings (`Veilance.NanoGPT`)
+- NanoGPT node button/context menu (`Manage Aliases`)
 
 ## Notes
 
 - `watchdog` is optional but enables auto-refresh for prompt file changes.
 - `pyyaml` is optional but required for YAML prompt files.
+- `keyring` is optional but required for encrypted API key storage in NanoGPT aliases.
 
 For detailed architecture and development notes, see [`project.md`](project.md).
