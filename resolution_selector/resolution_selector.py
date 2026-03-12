@@ -3,6 +3,8 @@ Resolution Selector Node for ComfyUI.
 Calculates width and height from a pixel budget and aspect ratio.
 """
 
+from __future__ import annotations
+
 import math
 from typing import Tuple
 
@@ -118,7 +120,7 @@ class ResolutionSelector:
         aspect_ratio_name: str,
         custom_ratio_width: int,
         custom_ratio_height: int,
-    ) -> tuple[int, int, float, str, int]:
+    ) -> Tuple[int, int, float, str, int]:
         width_ratio, height_ratio = cls._resolve_ratio(
             aspect_ratio_name, custom_ratio_width, custom_ratio_height
         )
@@ -160,8 +162,10 @@ class ResolutionSelector:
 
 NODE_CLASS_MAPPINGS = {
     "ResolutionSelector": ResolutionSelector,
+    "VeilanceResolutionSelector": ResolutionSelector,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ResolutionSelector": "Resolution Selector",
+    "VeilanceResolutionSelector": "Resolution Selector (Veilance)",
 }

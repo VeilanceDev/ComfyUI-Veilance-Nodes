@@ -12,6 +12,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from typing import Any, Dict, Optional, Tuple
 
 from . import alias_store
@@ -25,6 +26,19 @@ except ImportError:
 
 # Simple in-memory cache
 _RESPONSE_CACHE: Dict[str, str] = {}
+_LOCAL_API_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+
+def _is_local_api_url(url: str) -> bool:
+    candidate = str(url or "").strip()
+    if not candidate:
+        return False
+    try:
+        parsed = urlparse(candidate if "://" in candidate else f"http://{candidate}")
+        host = (parsed.hostname or "").lower()
+    except Exception:
+        return False
+    return host in _LOCAL_API_HOSTS
 
 
 class NanoGPTTextGenerator:
@@ -179,24 +193,20 @@ class NanoGPTTextGenerator:
         if alias_settings is None:
             return None, "Alias resolution failed."
 
-        # Alias values are the source of truth in alias mode.
+        # Alias mode only overrides connection/auth details; generation controls stay on-node.
         return {
-            "api_provider": alias_settings.get("api_provider", manual["api_provider"]),
-            "custom_api_url": alias_settings.get("custom_api_url", ""),
+            "api_provider": manual["api_provider"],
+            "custom_api_url": alias_settings.get(
+                "custom_api_url", manual["custom_api_url"]
+            ),
             "api_key": alias_settings.get("api_key", ""),
             "model": alias_settings.get("model", manual["model"]),
-            "temperature": alias_settings.get("temperature", manual["temperature"]),
-            "max_tokens": alias_settings.get("max_tokens", manual["max_tokens"]),
-            "top_p": alias_settings.get("top_p", manual["top_p"]),
-            "frequency_penalty": alias_settings.get(
-                "frequency_penalty", manual["frequency_penalty"]
-            ),
-            "presence_penalty": alias_settings.get(
-                "presence_penalty", manual["presence_penalty"]
-            ),
-            "response_format": alias_settings.get(
-                "response_format", manual["response_format"]
-            ),
+            "temperature": manual["temperature"],
+            "max_tokens": manual["max_tokens"],
+            "top_p": manual["top_p"],
+            "frequency_penalty": manual["frequency_penalty"],
+            "presence_penalty": manual["presence_penalty"],
+            "response_format": manual["response_format"],
         }, ""
 
     def generate_text(
@@ -249,15 +259,15 @@ class NanoGPTTextGenerator:
         presence_penalty = float(settings["presence_penalty"])
         response_format = str(settings["response_format"])
 
-        if api_provider == "Custom":
-            base_url = custom_api_url.rstrip("/")
-        else:
+        base_url = (custom_api_url or "").strip().rstrip("/")
+        if not base_url:
             base_url = self.API_PROVIDERS.get(api_provider, "").rstrip("/")
 
         if not base_url:
             return ("Error: A valid API URL must be provided.", "[]", prompt)
 
-        if api_provider != "Local LM Studio" and not api_key:
+        key_optional = api_provider == "Local LM Studio" or _is_local_api_url(base_url)
+        if not key_optional and not api_key:
             return (
                 "Error: API key is required for this provider. "
                 "If using alias mode, ensure alias key source/key is configured.",
@@ -371,15 +381,8 @@ class NanoGPTTextGenerator:
 def _alias_payload_from_request(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], str, str]:
     config = alias_store.normalize_alias_config(
         {
-            "api_provider": payload.get("api_provider", "OpenAI"),
             "custom_api_url": payload.get("custom_api_url", ""),
             "model": payload.get("model", "openai/gpt-5.2"),
-            "temperature": payload.get("temperature", 0.7),
-            "max_tokens": payload.get("max_tokens", 1024),
-            "top_p": payload.get("top_p", 1.0),
-            "frequency_penalty": payload.get("frequency_penalty", 0.0),
-            "presence_penalty": payload.get("presence_penalty", 0.0),
-            "response_format": payload.get("response_format", "text"),
             "key_source": payload.get("key_source", "keyring"),
             "api_key_env": payload.get("api_key_env", ""),
         }
@@ -466,7 +469,7 @@ try:
                         )
                     if (
                         not has_key
-                        and config["api_provider"] != "Local LM Studio"
+                        and not _is_local_api_url(config.get("custom_api_url", ""))
                     ):
                         return web.json_response(
                             {

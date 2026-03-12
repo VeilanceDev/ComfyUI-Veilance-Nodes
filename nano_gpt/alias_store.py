@@ -29,15 +29,8 @@ _ALIAS_FILE = Path(__file__).with_name("aliases.json")
 _KEYRING_SERVICE = "ComfyUI.Veilance.NanoGPT"
 
 DEFAULT_ALIAS_CONFIG: Dict[str, Any] = {
-    "api_provider": "OpenAI",
     "custom_api_url": "",
     "model": "openai/gpt-5.2",
-    "temperature": 0.7,
-    "max_tokens": 1024,
-    "top_p": 1.0,
-    "frequency_penalty": 0.0,
-    "presence_penalty": 0.0,
-    "response_format": "text",
     "key_source": "keyring",  # keyring | env | none
     "api_key_env": "",
 }
@@ -53,43 +46,18 @@ def _normalize_alias_name(name: Any) -> str:
     return str(name).strip()
 
 
-def _safe_float(value: Any, fallback: float) -> float:
-    try:
-        return float(value)
-    except Exception:
-        return fallback
-
-
-def _safe_int(value: Any, fallback: int) -> int:
-    try:
-        return int(value)
-    except Exception:
-        return fallback
-
-
 def normalize_alias_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    source = config or {}
     cfg = dict(DEFAULT_ALIAS_CONFIG)
-    cfg.update(config or {})
 
-    cfg["api_provider"] = str(cfg.get("api_provider", "OpenAI") or "OpenAI").strip()
-    cfg["custom_api_url"] = str(cfg.get("custom_api_url", "") or "").strip()
-    cfg["model"] = str(cfg.get("model", "openai/gpt-5.2") or "openai/gpt-5.2").strip()
-    cfg["temperature"] = _safe_float(cfg.get("temperature"), 0.7)
-    cfg["max_tokens"] = max(1, _safe_int(cfg.get("max_tokens"), 1024))
-    cfg["top_p"] = _safe_float(cfg.get("top_p"), 1.0)
-    cfg["frequency_penalty"] = _safe_float(cfg.get("frequency_penalty"), 0.0)
-    cfg["presence_penalty"] = _safe_float(cfg.get("presence_penalty"), 0.0)
+    cfg["custom_api_url"] = str(source.get("custom_api_url", "") or "").strip()
+    cfg["model"] = str(source.get("model", "openai/gpt-5.2") or "openai/gpt-5.2").strip()
 
-    response_format = str(cfg.get("response_format", "text") or "text").strip()
-    cfg["response_format"] = (
-        response_format if response_format in {"text", "json_object"} else "text"
-    )
-
-    key_source = str(cfg.get("key_source", "keyring") or "keyring").strip().lower()
+    key_source = str(source.get("key_source", "keyring") or "keyring").strip().lower()
     if key_source not in {"keyring", "env", "none"}:
         key_source = "keyring"
     cfg["key_source"] = key_source
-    cfg["api_key_env"] = str(cfg.get("api_key_env", "") or "").strip()
+    cfg["api_key_env"] = str(source.get("api_key_env", "") or "").strip()
     return cfg
 
 

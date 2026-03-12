@@ -4,119 +4,82 @@ Custom nodes including model loading, resolution, and prompt selector functional
 """
 
 from importlib import import_module
-
-from .resolution_selector import (
-    NODE_CLASS_MAPPINGS as RESOLUTION_SELECTOR_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as RESOLUTION_SELECTOR_DISPLAY_MAPPINGS,
-)
-from .prompt_selector import (
-    NODE_CLASS_MAPPINGS as PROMPT_SELECTOR_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as PROMPT_SELECTOR_DISPLAY_MAPPINGS,
-)
-from .model_loader_trio import (
-    NODE_CLASS_MAPPINGS as MODEL_LOADER_TRIO_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as MODEL_LOADER_TRIO_DISPLAY_MAPPINGS,
-)
-from .model_loader_checkpoint_vae import (
-    NODE_CLASS_MAPPINGS as MODEL_LOADER_CHECKPOINT_VAE_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as MODEL_LOADER_CHECKPOINT_VAE_DISPLAY_MAPPINGS,
-)
-from .prompt_cleaner import (
-    NODE_CLASS_MAPPINGS as PROMPT_CLEANER_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as PROMPT_CLEANER_DISPLAY_MAPPINGS,
-)
-from .pipe_ksampler import (
-    NODE_CLASS_MAPPINGS as PIPE_KSAMPLER_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as PIPE_KSAMPLER_DISPLAY_MAPPINGS,
-)
-from .pipe_builder import (
-    NODE_CLASS_MAPPINGS as PIPE_BUILDER_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as PIPE_BUILDER_DISPLAY_MAPPINGS,
-)
-from .pipe_router import (
-    NODE_CLASS_MAPPINGS as PIPE_ROUTER_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as PIPE_ROUTER_DISPLAY_MAPPINGS,
-)
-from .sampler_presets import (
-    NODE_CLASS_MAPPINGS as SAMPLER_PRESETS_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as SAMPLER_PRESETS_DISPLAY_MAPPINGS,
-)
-from .seed_strategy import (
-    NODE_CLASS_MAPPINGS as SEED_STRATEGY_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as SEED_STRATEGY_DISPLAY_MAPPINGS,
-)
-from .lora_stack import (
-    NODE_CLASS_MAPPINGS as LORA_STACK_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as LORA_STACK_DISPLAY_MAPPINGS,
-)
-from .nano_gpt import (
-    NODE_CLASS_MAPPINGS as NANO_GPT_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as NANO_GPT_DISPLAY_MAPPINGS,
-)
+import traceback
 
 
-def _load_optional_node_package(module_name: str):
+def _load_node_package(module_name: str):
     try:
         module = import_module(f".{module_name}", __name__)
     except Exception as exc:
         print(
-            f"[ComfyUI-Veilance-Nodes] Skipping optional package '{module_name}' "
+            f"[ComfyUI-Veilance-Nodes] Skipping node package '{module_name}' "
             f"because it failed to import: {exc}"
         )
-        return {}, {}
+        print(traceback.format_exc())
+        return {}, {}, False
 
-    return (
-        getattr(module, "NODE_CLASS_MAPPINGS", {}),
-        getattr(module, "NODE_DISPLAY_NAME_MAPPINGS", {}),
+    node_classes = getattr(module, "NODE_CLASS_MAPPINGS", {})
+    node_display_names = getattr(module, "NODE_DISPLAY_NAME_MAPPINGS", {})
+
+    if not isinstance(node_classes, dict) or not isinstance(node_display_names, dict):
+        print(
+            f"[ComfyUI-Veilance-Nodes] Node package '{module_name}' did not expose "
+            "dict mappings. Skipping it."
+        )
+        return {}, {}, False
+
+    return node_classes, node_display_names, True
+
+
+_NODE_PACKAGE_ORDER = [
+    "resolution_selector",
+    "prompt_selector",
+    "model_loader_trio",
+    "model_loader_checkpoint_vae",
+    "prompt_cleaner",
+    "pipe_ksampler",
+    "pipe_builder",
+    "pipe_router",
+    "sampler_presets",
+    "seed_strategy",
+    "lora_stack",
+    "nano_gpt",
+    "save_image_civitai",
+    "image_sharpen",
+    "film_grain",
+]
+
+
+def _build_node_mappings():
+    node_class_mappings = {}
+    node_display_name_mappings = {}
+    loaded_packages = []
+    skipped_packages = []
+
+    for module_name in _NODE_PACKAGE_ORDER:
+        class_mappings, display_name_mappings, loaded = _load_node_package(module_name)
+        if loaded:
+            loaded_packages.append(module_name)
+        else:
+            skipped_packages.append(module_name)
+        node_class_mappings.update(class_mappings)
+        node_display_name_mappings.update(display_name_mappings)
+
+    print(
+        "[ComfyUI-Veilance-Nodes] Package load summary: "
+        f"loaded={len(loaded_packages)} skipped={len(skipped_packages)} "
+        f"nodes={len(node_class_mappings)}"
     )
+    if skipped_packages:
+        print(
+            "[ComfyUI-Veilance-Nodes] Skipped packages: "
+            + ", ".join(skipped_packages)
+        )
+
+    return node_class_mappings, node_display_name_mappings
 
 
-SAVE_IMAGE_CIVITAI_MAPPINGS, SAVE_IMAGE_CIVITAI_DISPLAY_MAPPINGS = _load_optional_node_package(
-    "save_image_civitai"
-)
-IMAGE_SHARPEN_MAPPINGS, IMAGE_SHARPEN_DISPLAY_MAPPINGS = _load_optional_node_package(
-    "image_sharpen"
-)
-FILM_GRAIN_MAPPINGS, FILM_GRAIN_DISPLAY_MAPPINGS = _load_optional_node_package(
-    "film_grain"
-)
-
-# Combine all node mappings
-NODE_CLASS_MAPPINGS = {
-    **RESOLUTION_SELECTOR_MAPPINGS,
-    **PROMPT_SELECTOR_MAPPINGS,
-    **MODEL_LOADER_TRIO_MAPPINGS,
-    **MODEL_LOADER_CHECKPOINT_VAE_MAPPINGS,
-    **PROMPT_CLEANER_MAPPINGS,
-    **PIPE_KSAMPLER_MAPPINGS,
-    **PIPE_BUILDER_MAPPINGS,
-    **PIPE_ROUTER_MAPPINGS,
-    **SAMPLER_PRESETS_MAPPINGS,
-    **SEED_STRATEGY_MAPPINGS,
-    **LORA_STACK_MAPPINGS,
-    **NANO_GPT_MAPPINGS,
-    **SAVE_IMAGE_CIVITAI_MAPPINGS,
-    **IMAGE_SHARPEN_MAPPINGS,
-    **FILM_GRAIN_MAPPINGS,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    **RESOLUTION_SELECTOR_DISPLAY_MAPPINGS,
-    **PROMPT_SELECTOR_DISPLAY_MAPPINGS,
-    **MODEL_LOADER_TRIO_DISPLAY_MAPPINGS,
-    **MODEL_LOADER_CHECKPOINT_VAE_DISPLAY_MAPPINGS,
-    **PROMPT_CLEANER_DISPLAY_MAPPINGS,
-    **PIPE_KSAMPLER_DISPLAY_MAPPINGS,
-    **PIPE_BUILDER_DISPLAY_MAPPINGS,
-    **PIPE_ROUTER_DISPLAY_MAPPINGS,
-    **SAMPLER_PRESETS_DISPLAY_MAPPINGS,
-    **SEED_STRATEGY_DISPLAY_MAPPINGS,
-    **LORA_STACK_DISPLAY_MAPPINGS,
-    **NANO_GPT_DISPLAY_MAPPINGS,
-    **SAVE_IMAGE_CIVITAI_DISPLAY_MAPPINGS,
-    **IMAGE_SHARPEN_DISPLAY_MAPPINGS,
-    **FILM_GRAIN_DISPLAY_MAPPINGS,
-}
+NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS = _build_node_mappings()
 
 # JavaScript extensions directory
 WEB_DIRECTORY = "./js"

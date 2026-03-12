@@ -23,6 +23,7 @@ from .file_utils import (
 
 PROMPT_SELECTOR_CLASS_PREFIX = "PromptSelector_"
 PLACEHOLDER_CLASS_NAME = "PromptSelector"
+PROMPT_DYNAMIC_CATEGORY = "Veilance/Prompts/Dynamic Lists"
 
 NODE_CLASS_TO_CATEGORY: Dict[str, str] = {}
 NODE_CLASS_MAPPINGS: Dict[str, type] = {}
@@ -55,7 +56,7 @@ class PromptSelectorPlaceholder:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("positive", "negative")
     FUNCTION = "show_message"
-    CATEGORY = "Veilance/Utils/Prompts"
+    CATEGORY = PROMPT_DYNAMIC_CATEGORY
 
     def show_message(self, message):
         return ("", "")
@@ -122,7 +123,7 @@ def create_category_node_class(category_name: str):
         RETURN_TYPES = ("STRING", "STRING")
         RETURN_NAMES = ("positive", "negative")
         FUNCTION = "select_prompts"
-        CATEGORY = "Veilance/Utils/Prompts"
+        CATEGORY = PROMPT_DYNAMIC_CATEGORY
 
         @classmethod
         def IS_CHANGED(cls, **kwargs):

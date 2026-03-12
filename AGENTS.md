@@ -4,7 +4,7 @@ Technical guidance for LLM agents reviewing or modifying this repository. Make s
 
 ## Scope
 
-This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__.py) aggregates node mappings from submodules and exposes `WEB_DIRECTORY = "./js"`.
+This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__.py) aggregates node mappings from submodules via guarded per-package imports and exposes `WEB_DIRECTORY = "./js"`.
 
 ## Repository Map
 
@@ -44,6 +44,7 @@ Each node package should follow:
 3. Root `__init__.py` imports and merges that package mappings.
 
 Preserve existing node class keys when possible; changing keys breaks saved workflows.
+Resolution selector currently exports both `ResolutionSelector` and `VeilanceResolutionSelector` (alias) keys for workflow compatibility and collision avoidance.
 
 ## Important Internal Conventions
 
@@ -57,21 +58,24 @@ Preserve existing node class keys when possible; changing keys breaks saved work
   - `6 seed`
 - Some nodes preserve extra `PIPE` tail values; do not truncate unless intentional.
 - `prompt_selector` dynamically generates classes at runtime from `data/prompts/`.
+- Dynamic prompt selector nodes are grouped under the ComfyUI category path `Veilance/Prompts/Dynamic Lists`.
 - `prompt_selector` also registers `POST /prompt_selector/refresh` via `PromptServer`.
-- `nano_gpt` supports alias-based config profiles (`manual` vs `alias` mode). Alias metadata is stored in `nano_gpt/aliases.json`, while API keys are resolved from OS keyring (`keyring`) or env vars.
+- `nano_gpt` supports alias-based config profiles (`manual` vs `alias` mode). Alias metadata stores `custom_api_url`, `model`, and key-source metadata in `nano_gpt/aliases.json`, while API keys are resolved from OS keyring (`keyring`) or env vars.
 - `nano_gpt` registers alias management routes:
   - `GET /veilance/nano_gpt/aliases`
   - `POST /veilance/nano_gpt/aliases/upsert`
   - `POST /veilance/nano_gpt/aliases/delete`
 - `save_image_civitai` is an output node that writes CivitAI-compatible metadata for PNG/JPG/WEBP and optionally embeds Comfy workflow metadata.
+- `save_image_civitai` prefers ComfyUI `folder_paths` output directory, with a local `./output` fallback when `folder_paths` is unavailable.
 - `image_sharpen` provides torch-first image post-processing nodes with an optional Pillow/numpy fallback for blur operations.
 - `film_grain` provides deterministic torch-based film grain with stock presets and adaptive luminance/detail masking for more natural placement.
-- Root package registration may skip optional node packages if they fail to import; avoid introducing package-level imports that can hide unrelated nodes.
+- Root package registration loads node packages through a guarded import helper so one broken package does not prevent unrelated nodes from appearing in ComfyUI.
+- Root startup logs include a per-run package load summary (`loaded`, `skipped`, `nodes`) and list any skipped package names.
 
 ## External/API Node Notes
 
 - `nano_gpt/nano_gpt.py` calls OpenAI-compatible `/chat/completions` endpoints.
-- It supports multiple providers, optional image input, retries, in-memory caching, and alias profiles that include provider/url/model/sampling defaults.
+- It supports multiple providers, optional image input, retries, in-memory caching, and alias profiles that only override API URL/model/auth while generation controls remain node inputs.
 - Review API error handling carefully: HTTP errors are surfaced as string outputs, not raised exceptions.
 - `nano_gpt/alias_store.py` handles alias persistence and keyring interactions. Avoid storing API secrets in workflow widgets or plaintext JSON.
 

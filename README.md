@@ -58,13 +58,14 @@ Current extensions:
 `NanoGPT Text Generator` supports two config modes:
 
 - `manual`: use node widget values directly (legacy behavior)
-- `alias`: load provider URL, model, generation defaults, and key source from a saved alias
+- `alias`: load API URL, model, and key source/API key from a saved alias
 
 Alias data model:
 
-- Non-secret alias settings are stored in `nano_gpt/aliases.json`
+- Non-secret alias settings (`custom_api_url`, `model`, key-source metadata) are stored in `nano_gpt/aliases.json`
 - API keys are stored in OS keychain via Python `keyring` (not in workflow JSON)
 - `key_source` can be `keyring`, `env` (from env var name), or `none`
+- Generation controls (temperature, max tokens, top-p, penalties, response format) remain on the node widgets
 
 Open the alias manager from:
 

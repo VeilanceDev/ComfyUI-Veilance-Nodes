@@ -182,7 +182,7 @@ A text/vision prompt generation node that calls OpenAI-compatible `/chat/complet
 - `system_prompt` (STRING): System instruction text
 - `config_mode` (COMBO): `manual` or `alias`
 - `alias_name` (STRING): Alias profile name used when `config_mode = alias`
-- `api_provider` / `custom_api_url` / `api_key` / `model` / sampling controls: Manual-mode settings (legacy behavior)
+- `api_provider` / `custom_api_url` / `api_key` / `model` / sampling controls: Node settings (manual mode uses all; alias mode only overrides URL/model/auth)
 - `images` (IMAGE, optional): First batch image is encoded as JPEG data URL and attached to the user message
 
 **Outputs:**
@@ -191,7 +191,8 @@ A text/vision prompt generation node that calls OpenAI-compatible `/chat/complet
 - `prompt_echo` (STRING): Input prompt passthrough
 
 **Alias Behavior:**
-- Alias mode resolves provider URL, model, and sampling defaults from alias config
+- Alias mode resolves API URL, model, and auth from alias config
+- Alias mode keeps generation controls (temperature/max tokens/top-p/penalties/response format) from node widgets
 - Alias `key_source` supports:
   - `keyring` (OS keychain via Python `keyring`)
   - `env` (lookup from configured env var name)

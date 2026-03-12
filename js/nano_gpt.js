@@ -5,17 +5,6 @@ const NODE_CLASS = "NanoGPTTextGenerator";
 const SETTINGS_ID_OPEN = "Veilance.NanoGPT.OpenAliasManager";
 const SETTINGS_ID_INFO = "Veilance.NanoGPT.AliasInfo";
 
-const PROVIDERS = [
-    "NanoGPT",
-    "OpenAI",
-    "DeepSeek",
-    "Groq",
-    "Local LM Studio",
-    "RunPod/vLLM",
-    "Custom",
-];
-
-const RESPONSE_FORMATS = ["text", "json_object"];
 const KEY_SOURCES = ["keyring", "env", "none"];
 
 function getNodeClassName(node) {
@@ -127,16 +116,6 @@ function inputStyle(theme) {
     ].join(";");
 }
 
-function numberValue(input, fallback) {
-    const value = Number.parseFloat(input.value);
-    return Number.isFinite(value) ? value : fallback;
-}
-
-function intValue(input, fallback) {
-    const value = Number.parseInt(input.value, 10);
-    return Number.isFinite(value) ? value : fallback;
-}
-
 function openAliasManager() {
     const existing = document.getElementById("veilance-nanogpt-alias-manager");
     if (existing) {
@@ -176,7 +155,7 @@ function openAliasManager() {
 
     const subtitle = document.createElement("div");
     subtitle.textContent =
-        "Alias config is stored in JSON; API keys are stored in OS keyring when key source is keyring.";
+        "Aliases store API URL/model and API key source metadata; keyring keys stay in the OS keychain.";
     subtitle.style.cssText = `margin:0 0 14px 0;font-size:12px;color:${theme.muted};`;
 
     const status = document.createElement("div");
@@ -219,15 +198,6 @@ function openAliasManager() {
     aliasNameInput.placeholder = "Alias name";
     aliasNameInput.style.cssText = inputStyle(theme);
 
-    const providerInput = document.createElement("select");
-    providerInput.style.cssText = inputStyle(theme);
-    PROVIDERS.forEach((provider) => {
-        const opt = document.createElement("option");
-        opt.value = provider;
-        opt.textContent = provider;
-        providerInput.appendChild(opt);
-    });
-
     const customUrlInput = document.createElement("input");
     customUrlInput.type = "text";
     customUrlInput.placeholder = "https://example.com/v1";
@@ -237,54 +207,6 @@ function openAliasManager() {
     modelInput.type = "text";
     modelInput.placeholder = "openai/gpt-5.2";
     modelInput.style.cssText = inputStyle(theme);
-
-    const temperatureInput = document.createElement("input");
-    temperatureInput.type = "number";
-    temperatureInput.step = "0.1";
-    temperatureInput.min = "0";
-    temperatureInput.max = "2";
-    temperatureInput.value = "0.7";
-    temperatureInput.style.cssText = inputStyle(theme);
-
-    const maxTokensInput = document.createElement("input");
-    maxTokensInput.type = "number";
-    maxTokensInput.step = "1";
-    maxTokensInput.min = "1";
-    maxTokensInput.value = "1024";
-    maxTokensInput.style.cssText = inputStyle(theme);
-
-    const topPInput = document.createElement("input");
-    topPInput.type = "number";
-    topPInput.step = "0.05";
-    topPInput.min = "0";
-    topPInput.max = "1";
-    topPInput.value = "1.0";
-    topPInput.style.cssText = inputStyle(theme);
-
-    const frequencyPenaltyInput = document.createElement("input");
-    frequencyPenaltyInput.type = "number";
-    frequencyPenaltyInput.step = "0.1";
-    frequencyPenaltyInput.min = "-2";
-    frequencyPenaltyInput.max = "2";
-    frequencyPenaltyInput.value = "0.0";
-    frequencyPenaltyInput.style.cssText = inputStyle(theme);
-
-    const presencePenaltyInput = document.createElement("input");
-    presencePenaltyInput.type = "number";
-    presencePenaltyInput.step = "0.1";
-    presencePenaltyInput.min = "-2";
-    presencePenaltyInput.max = "2";
-    presencePenaltyInput.value = "0.0";
-    presencePenaltyInput.style.cssText = inputStyle(theme);
-
-    const responseFormatInput = document.createElement("select");
-    responseFormatInput.style.cssText = inputStyle(theme);
-    RESPONSE_FORMATS.forEach((fmt) => {
-        const opt = document.createElement("option");
-        opt.value = fmt;
-        opt.textContent = fmt;
-        responseFormatInput.appendChild(opt);
-    });
 
     const keySourceInput = document.createElement("select");
     keySourceInput.style.cssText = inputStyle(theme);
@@ -313,30 +235,16 @@ function openAliasManager() {
     clearStoredKeyLabel.append(clearStoredKeyInput, document.createTextNode("Clear stored keyring key"));
 
     const fieldAliasName = createInputField("Alias", aliasNameInput, theme);
-    const fieldProvider = createInputField("Provider", providerInput, theme);
-    const fieldCustomUrl = createInputField("Custom API URL", customUrlInput, theme);
+    const fieldCustomUrl = createInputField("API URL", customUrlInput, theme);
     const fieldModel = createInputField("Model", modelInput, theme);
-    const fieldTemp = createInputField("Temperature", temperatureInput, theme);
-    const fieldMaxTokens = createInputField("Max Tokens", maxTokensInput, theme);
-    const fieldTopP = createInputField("Top P", topPInput, theme);
-    const fieldFreq = createInputField("Frequency Penalty", frequencyPenaltyInput, theme);
-    const fieldPresence = createInputField("Presence Penalty", presencePenaltyInput, theme);
-    const fieldResp = createInputField("Response Format", responseFormatInput, theme);
     const fieldKeySource = createInputField("Key Source", keySourceInput, theme);
     const fieldApiEnv = createInputField("API Key Env", apiKeyEnvInput, theme);
     const fieldApiKey = createInputField("API Key", apiKeyInput, theme);
 
     right.append(
         fieldAliasName,
-        fieldProvider,
         fieldCustomUrl,
         fieldModel,
-        fieldTemp,
-        fieldMaxTokens,
-        fieldTopP,
-        fieldFreq,
-        fieldPresence,
-        fieldResp,
         fieldKeySource,
         fieldApiEnv,
         fieldApiKey,
@@ -392,15 +300,8 @@ function openAliasManager() {
     function applyAliasToForm(alias) {
         if (!alias) return;
         aliasNameInput.value = alias.name || "";
-        providerInput.value = alias.api_provider || "OpenAI";
         customUrlInput.value = alias.custom_api_url || "";
         modelInput.value = alias.model || "openai/gpt-5.2";
-        temperatureInput.value = String(alias.temperature ?? 0.7);
-        maxTokensInput.value = String(alias.max_tokens ?? 1024);
-        topPInput.value = String(alias.top_p ?? 1.0);
-        frequencyPenaltyInput.value = String(alias.frequency_penalty ?? 0.0);
-        presencePenaltyInput.value = String(alias.presence_penalty ?? 0.0);
-        responseFormatInput.value = alias.response_format || "text";
         keySourceInput.value = alias.key_source || "keyring";
         apiKeyEnvInput.value = alias.api_key_env || "";
         apiKeyInput.value = "";
@@ -416,7 +317,7 @@ function openAliasManager() {
             const opt = document.createElement("option");
             const keyLabel = alias.has_api_key ? "key:yes" : "key:no";
             opt.value = alias.name;
-            opt.textContent = `${alias.name} (${alias.api_provider}, ${keyLabel})`;
+            opt.textContent = `${alias.name} (${alias.model || "no-model"}, ${keyLabel})`;
             aliasSelect.appendChild(opt);
         }
         if (!aliases.length) {
@@ -467,15 +368,8 @@ function openAliasManager() {
 
         const payload = {
             name,
-            api_provider: providerInput.value,
             custom_api_url: customUrlInput.value.trim(),
             model: modelInput.value.trim(),
-            temperature: numberValue(temperatureInput, 0.7),
-            max_tokens: intValue(maxTokensInput, 1024),
-            top_p: numberValue(topPInput, 1.0),
-            frequency_penalty: numberValue(frequencyPenaltyInput, 0.0),
-            presence_penalty: numberValue(presencePenaltyInput, 0.0),
-            response_format: responseFormatInput.value,
             key_source: keySourceInput.value,
             api_key_env: apiKeyEnvInput.value.trim(),
             clear_api_key: clearStoredKeyInput.checked,
@@ -587,7 +481,7 @@ function registerSettingsButton() {
             valueCell.style.cssText = "display:flex;align-items:center;gap:10px;";
 
             const text = document.createElement("span");
-            text.textContent = "Store provider/url/model in alias and keep API keys in OS keyring.";
+            text.textContent = "Store API URL/model in aliases and keep API keys in the OS keyring.";
             text.style.cssText = "font-size:12px;opacity:0.85;";
             const button = document.createElement("button");
             button.textContent = "Manage Aliases";

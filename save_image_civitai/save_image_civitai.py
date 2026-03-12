@@ -8,10 +8,22 @@ import json
 import os
 from typing import Any, Dict, Optional
 
-import folder_paths
-import numpy as np
-from PIL import Image
-from PIL.PngImagePlugin import PngInfo
+try:
+    import numpy as np  # type: ignore
+except Exception:  # pragma: no cover - optional at import time
+    np = None
+
+try:
+    from PIL import Image  # type: ignore
+    from PIL.PngImagePlugin import PngInfo  # type: ignore
+except Exception:  # pragma: no cover - optional at import time
+    Image = None
+    PngInfo = None
+
+try:
+    import folder_paths  # type: ignore
+except Exception:  # pragma: no cover - depends on ComfyUI runtime
+    folder_paths = None
 
 
 class SaveImageCivitaiMetadata:
@@ -41,7 +53,10 @@ class SaveImageCivitaiMetadata:
     }
 
     def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
+        if folder_paths is not None:
+            self.output_dir = folder_paths.get_output_directory()
+        else:
+            self.output_dir = os.path.join(os.getcwd(), "output")
         self.type = "output"
 
     @classmethod
@@ -310,6 +325,20 @@ class SaveImageCivitaiMetadata:
             "type": self.type,
         }
 
+    @staticmethod
+    def _ensure_runtime_dependencies() -> None:
+        missing = []
+        if np is None:
+            missing.append("numpy")
+        if Image is None or PngInfo is None:
+            missing.append("Pillow")
+
+        if missing:
+            raise RuntimeError(
+                "SaveImageCivitaiMetadata requires the following runtime dependencies: "
+                + ", ".join(missing)
+            )
+
     def save_images(
         self,
         images,
@@ -334,18 +363,39 @@ class SaveImageCivitaiMetadata:
         prompt=None,
         extra_pnginfo=None,
     ):
+        self._ensure_runtime_dependencies()
         normalized_format = self._normalize_format(file_format)
         filename_prefix = self._parse_output_path(output_path, normalized_format)
 
         first_image = images[0]
         height = int(first_image.shape[0])
         width = int(first_image.shape[1])
-        full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
-            filename_prefix,
-            self.output_dir,
-            width,
-            height,
-        )
+        if folder_paths is not None:
+            (
+                full_output_folder,
+                filename,
+                counter,
+                subfolder,
+                _,
+            ) = folder_paths.get_save_image_path(
+                filename_prefix,
+                self.output_dir,
+                width,
+                height,
+            )
+        else:
+            subfolder = os.path.dirname(filename_prefix).replace("\\", "/")
+            filename = os.path.basename(filename_prefix) or self._DEFAULT_FILENAME_STEM
+            full_output_folder = os.path.join(self.output_dir, os.path.dirname(filename_prefix))
+            os.makedirs(full_output_folder, exist_ok=True)
+            counter = 1
+            while os.path.exists(
+                os.path.join(
+                    full_output_folder,
+                    f"{filename}_{counter:05}_.{normalized_format}",
+                )
+            ):
+                counter += 1
 
         results = []
         for image_tensor in images:
