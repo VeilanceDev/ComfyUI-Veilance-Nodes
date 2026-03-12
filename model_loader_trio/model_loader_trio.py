@@ -5,71 +5,16 @@ Wrap built-in Diffusion Model, CLIP, and VAE loaders into single convenience nod
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Tuple
 
-
-def _resolve_loader_class(display_name: str, fallback_class_names: Iterable[str]):
-    import nodes  # type: ignore
-
-    for class_name in fallback_class_names:
-        loader_class = nodes.NODE_CLASS_MAPPINGS.get(class_name)
-        if loader_class is not None:
-            return loader_class
-
-    for class_name, mapped_display_name in nodes.NODE_DISPLAY_NAME_MAPPINGS.items():
-        if mapped_display_name == display_name:
-            loader_class = nodes.NODE_CLASS_MAPPINGS.get(class_name)
-            if loader_class is not None:
-                return loader_class
-
-    raise RuntimeError(
-        f"Could not find ComfyUI loader node for '{display_name}'. "
-        f"Checked fallback class names: {list(fallback_class_names)}."
-    )
-
-
-def _get_required_inputs(loader_class) -> Dict[str, Any]:
-    input_types = loader_class.INPUT_TYPES()
-    required_inputs = input_types.get("required", {})
-    if not isinstance(required_inputs, dict):
-        return {}
-    return required_inputs
-
-
-def _extract_default_value(input_spec: Any) -> Any:
-    if isinstance(input_spec, tuple) and len(input_spec) > 1:
-        config = input_spec[1]
-        if isinstance(config, dict):
-            return config.get("default")
-    return None
-
-
-def _find_first_input(
-    required_inputs: Dict[str, Any],
-    candidates: Iterable[str],
-) -> Tuple[Optional[str], Any]:
-    for name in candidates:
-        if name in required_inputs:
-            return name, required_inputs[name]
-    return None, None
-
-
-def _run_loader(loader_class, kwargs: Dict[str, Any]):
-    loader = loader_class()
-    function_name = getattr(loader_class, "FUNCTION", None) or getattr(
-        loader, "FUNCTION", None
-    )
-    if not function_name:
-        raise RuntimeError(f"Loader class '{loader_class.__name__}' has no FUNCTION.")
-
-    loader_fn = getattr(loader, function_name)
-    result = loader_fn(**kwargs)
-
-    if isinstance(result, tuple):
-        return result[0]
-    if isinstance(result, list):
-        return result[0] if result else None
-    return result
+from ..comfy_reflection import (
+    build_required_kwargs,
+    extract_default_value,
+    find_first_input,
+    get_required_inputs,
+    resolve_node_class,
+    run_node,
+)
 
 
 def _fallback_clip_device_input_spec():
@@ -94,24 +39,24 @@ class _BaseModelLoaderTrio:
 
     @classmethod
     def _resolve_config(cls) -> Dict[str, Dict[str, Any]]:
-        diffusion_class = _resolve_loader_class(
+        diffusion_class = resolve_node_class(
             "Load Diffusion Model",
             ("UNETLoader", "DiffusionModelLoader"),
         )
-        clip_class = _resolve_loader_class(
+        clip_class = resolve_node_class(
             "Load CLIP",
             ("CLIPLoader",),
         )
-        vae_class = _resolve_loader_class(
+        vae_class = resolve_node_class(
             "Load VAE",
             ("VAELoader",),
         )
 
-        diffusion_required = _get_required_inputs(diffusion_class)
-        clip_required = _get_required_inputs(clip_class)
-        vae_required = _get_required_inputs(vae_class)
+        diffusion_required = get_required_inputs(diffusion_class)
+        clip_required = get_required_inputs(clip_class)
+        vae_required = get_required_inputs(vae_class)
 
-        diffusion_model_key, diffusion_model_input = _find_first_input(
+        diffusion_model_key, diffusion_model_input = find_first_input(
             diffusion_required, cls._DIFFUSION_MODEL_KEYS
         )
         if diffusion_model_key is None:
@@ -120,11 +65,11 @@ class _BaseModelLoaderTrio:
                 f"{list(diffusion_required.keys())}."
             )
 
-        diffusion_dtype_key, diffusion_dtype_input = _find_first_input(
+        diffusion_dtype_key, diffusion_dtype_input = find_first_input(
             diffusion_required, cls._DIFFUSION_DTYPE_KEYS
         )
 
-        clip_model_key, clip_model_input = _find_first_input(
+        clip_model_key, clip_model_input = find_first_input(
             clip_required, cls._CLIP_MODEL_KEYS
         )
         if clip_model_key is None:
@@ -133,16 +78,16 @@ class _BaseModelLoaderTrio:
                 f"{list(clip_required.keys())}."
             )
 
-        clip_type_key, clip_type_input = _find_first_input(
+        clip_type_key, clip_type_input = find_first_input(
             clip_required, cls._CLIP_TYPE_KEYS
         )
-        clip_device_key, clip_device_input = _find_first_input(
+        clip_device_key, clip_device_input = find_first_input(
             clip_required, cls._CLIP_DEVICE_KEYS
         )
         if clip_device_input is None:
             clip_device_input = _fallback_clip_device_input_spec()
 
-        vae_model_key, vae_model_input = _find_first_input(
+        vae_model_key, vae_model_input = find_first_input(
             vae_required, cls._VAE_MODEL_KEYS
         )
         if vae_model_key is None:
@@ -192,27 +137,6 @@ class _BaseModelLoaderTrio:
         required["vae_model"] = config["vae"]["model_input"]
         return required
 
-    @staticmethod
-    def _build_loader_kwargs(
-        required_inputs: Dict[str, Any],
-        explicit_values: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        kwargs: Dict[str, Any] = {}
-        for input_name, input_spec in required_inputs.items():
-            if input_name in explicit_values and explicit_values[input_name] is not None:
-                kwargs[input_name] = explicit_values[input_name]
-                continue
-
-            default_value = _extract_default_value(input_spec)
-            if default_value is not None:
-                kwargs[input_name] = default_value
-                continue
-
-            raise RuntimeError(
-                f"Required loader input '{input_name}' has no explicit value and no default."
-            )
-        return kwargs
-
     @classmethod
     def _load_trio(
         cls,
@@ -231,7 +155,7 @@ class _BaseModelLoaderTrio:
         if config["diffusion"]["dtype_key"] is not None:
             selected_dtype = diffusion_weight_dtype
             if selected_dtype is None:
-                selected_dtype = _extract_default_value(config["diffusion"]["dtype_input"])
+                selected_dtype = extract_default_value(config["diffusion"]["dtype_input"])
             diffusion_explicit[config["diffusion"]["dtype_key"]] = selected_dtype
 
         clip_explicit = {
@@ -240,45 +164,45 @@ class _BaseModelLoaderTrio:
         if config["clip"]["type_key"] is not None:
             selected_type = clip_type
             if selected_type is None:
-                selected_type = _extract_default_value(config["clip"]["type_input"])
+                selected_type = extract_default_value(config["clip"]["type_input"])
             clip_explicit[config["clip"]["type_key"]] = selected_type
         if config["clip"]["device_key"] is not None:
             selected_device = clip_device
             if selected_device is None:
-                selected_device = _extract_default_value(config["clip"]["device_input"])
+                selected_device = extract_default_value(config["clip"]["device_input"])
             clip_explicit[config["clip"]["device_key"]] = selected_device
 
         vae_explicit = {
             config["vae"]["model_key"]: vae_model,
         }
 
-        diffusion_kwargs = cls._build_loader_kwargs(
+        diffusion_kwargs = build_required_kwargs(
             config["diffusion"]["required"], diffusion_explicit
         )
-        clip_kwargs = cls._build_loader_kwargs(config["clip"]["required"], clip_explicit)
-        vae_kwargs = cls._build_loader_kwargs(config["vae"]["required"], vae_explicit)
+        clip_kwargs = build_required_kwargs(config["clip"]["required"], clip_explicit)
+        vae_kwargs = build_required_kwargs(config["vae"]["required"], vae_explicit)
 
-        model = _run_loader(config["diffusion"]["class"], diffusion_kwargs)
-        clip = _run_loader(config["clip"]["class"], clip_kwargs)
-        vae = _run_loader(config["vae"]["class"], vae_kwargs)
+        model = run_node(config["diffusion"]["class"], diffusion_kwargs)[0]
+        clip = run_node(config["clip"]["class"], clip_kwargs)[0]
+        vae = run_node(config["vae"]["class"], vae_kwargs)[0]
         return (model, clip, vae)
 
     @classmethod
     def _resolve_text_conditioning_config(cls) -> Dict[str, Any]:
-        text_conditioning_class = _resolve_loader_class(
+        text_conditioning_class = resolve_node_class(
             "CLIP Text Encode",
             ("CLIPTextEncode",),
         )
-        required_inputs = _get_required_inputs(text_conditioning_class)
+        required_inputs = get_required_inputs(text_conditioning_class)
 
-        clip_key, _ = _find_first_input(required_inputs, cls._TEXT_CONDITIONING_CLIP_KEYS)
+        clip_key, _ = find_first_input(required_inputs, cls._TEXT_CONDITIONING_CLIP_KEYS)
         if clip_key is None:
             raise RuntimeError(
                 "Could not resolve the CLIP input key for CLIP Text Encode from "
                 f"{list(required_inputs.keys())}."
             )
 
-        text_key, _ = _find_first_input(required_inputs, cls._TEXT_CONDITIONING_TEXT_KEYS)
+        text_key, _ = find_first_input(required_inputs, cls._TEXT_CONDITIONING_TEXT_KEYS)
         if text_key is None:
             raise RuntimeError(
                 "Could not resolve the text input key for CLIP Text Encode from "
@@ -294,27 +218,27 @@ class _BaseModelLoaderTrio:
 
     @classmethod
     def _resolve_empty_latent_config(cls) -> Dict[str, Any]:
-        empty_latent_class = _resolve_loader_class(
+        empty_latent_class = resolve_node_class(
             "Empty Latent Image",
             ("EmptyLatentImage",),
         )
-        required_inputs = _get_required_inputs(empty_latent_class)
+        required_inputs = get_required_inputs(empty_latent_class)
 
-        width_key, _ = _find_first_input(required_inputs, cls._LATENT_WIDTH_KEYS)
+        width_key, _ = find_first_input(required_inputs, cls._LATENT_WIDTH_KEYS)
         if width_key is None:
             raise RuntimeError(
                 "Could not resolve the width input key for Empty Latent Image from "
                 f"{list(required_inputs.keys())}."
             )
 
-        height_key, _ = _find_first_input(required_inputs, cls._LATENT_HEIGHT_KEYS)
+        height_key, _ = find_first_input(required_inputs, cls._LATENT_HEIGHT_KEYS)
         if height_key is None:
             raise RuntimeError(
                 "Could not resolve the height input key for Empty Latent Image from "
                 f"{list(required_inputs.keys())}."
             )
 
-        batch_key, _ = _find_first_input(required_inputs, cls._LATENT_BATCH_KEYS)
+        batch_key, _ = find_first_input(required_inputs, cls._LATENT_BATCH_KEYS)
         if batch_key is None:
             raise RuntimeError(
                 "Could not resolve the batch size input key for Empty Latent Image from "
@@ -332,19 +256,19 @@ class _BaseModelLoaderTrio:
     @classmethod
     def _encode_text_conditioning(cls, clip, prompt: str):
         config = cls._resolve_text_conditioning_config()
-        kwargs = cls._build_loader_kwargs(
+        kwargs = build_required_kwargs(
             config["required"],
             {
                 config["clip_key"]: clip,
                 config["text_key"]: str(prompt),
             },
         )
-        return _run_loader(config["class"], kwargs)
+        return run_node(config["class"], kwargs)[0]
 
     @classmethod
     def _create_empty_latent(cls, width: int, height: int, batch_size: int):
         config = cls._resolve_empty_latent_config()
-        kwargs = cls._build_loader_kwargs(
+        kwargs = build_required_kwargs(
             config["required"],
             {
                 config["width_key"]: int(width),
@@ -352,7 +276,7 @@ class _BaseModelLoaderTrio:
                 config["batch_key"]: int(batch_size),
             },
         )
-        return _run_loader(config["class"], kwargs)
+        return run_node(config["class"], kwargs)[0]
 
     @staticmethod
     def _pipe_tail(pipe: Any, replaced_items: int) -> Tuple[Any, ...]:

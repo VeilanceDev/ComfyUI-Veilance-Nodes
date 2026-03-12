@@ -5,92 +5,15 @@ Applies up to 5 LoRA models sequentially.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Tuple
 
-
-def _resolve_node_class(display_name: str, fallback_class_names: Iterable[str]):
-    import nodes  # type: ignore
-
-    for class_name in fallback_class_names:
-        node_class = nodes.NODE_CLASS_MAPPINGS.get(class_name)
-        if node_class is not None:
-            return node_class
-
-    for class_name, mapped_display_name in nodes.NODE_DISPLAY_NAME_MAPPINGS.items():
-        if mapped_display_name == display_name:
-            node_class = nodes.NODE_CLASS_MAPPINGS.get(class_name)
-            if node_class is not None:
-                return node_class
-
-    raise RuntimeError(
-        f"Could not find ComfyUI node for '{display_name}'. "
-        f"Checked fallback class names: {list(fallback_class_names)}."
-    )
-
-
-def _get_required_inputs(node_class) -> Dict[str, Any]:
-    input_types = node_class.INPUT_TYPES()
-    required_inputs = input_types.get("required", {})
-    if not isinstance(required_inputs, dict):
-        return {}
-    return required_inputs
-
-
-def _extract_default_value(input_spec: Any) -> Any:
-    if isinstance(input_spec, tuple) and len(input_spec) > 1:
-        config = input_spec[1]
-        if isinstance(config, dict):
-            return config.get("default")
-    return None
-
-
-def _find_first_input(
-    required_inputs: Dict[str, Any],
-    candidates: Iterable[str],
-) -> Tuple[Optional[str], Any]:
-    for name in candidates:
-        if name in required_inputs:
-            return name, required_inputs[name]
-    return None, None
-
-
-def _build_node_kwargs(
-    required_inputs: Dict[str, Any],
-    explicit_values: Dict[str, Any],
-) -> Dict[str, Any]:
-    kwargs: Dict[str, Any] = {}
-    for input_name, input_spec in required_inputs.items():
-        if input_name in explicit_values and explicit_values[input_name] is not None:
-            kwargs[input_name] = explicit_values[input_name]
-            continue
-
-        default_value = _extract_default_value(input_spec)
-        if default_value is not None:
-            kwargs[input_name] = default_value
-            continue
-
-        raise RuntimeError(
-            f"Required node input '{input_name}' has no explicit value and no default."
-        )
-    return kwargs
-
-
-def _run_node(node_class, kwargs: Dict[str, Any]) -> Tuple[Any, ...]:
-    node = node_class()
-    function_name = getattr(node_class, "FUNCTION", None) or getattr(
-        node, "FUNCTION", None
-    )
-    if not function_name:
-        raise RuntimeError(f"Node class '{node_class.__name__}' has no FUNCTION.")
-
-    node_fn = getattr(node, function_name)
-    result = node_fn(**kwargs)
-
-    if isinstance(result, tuple):
-        return result
-    if isinstance(result, list):
-        return tuple(result)
-    return (result,)
+from ..comfy_reflection import (
+    build_required_kwargs,
+    find_first_input,
+    get_required_inputs,
+    resolve_node_class,
+    run_node,
+)
 
 
 class LoraStack5:
@@ -114,16 +37,16 @@ class LoraStack5:
 
     @classmethod
     def _resolve_lora_loader_config(cls) -> Dict[str, Any]:
-        lora_loader_class = _resolve_node_class("Load LoRA", ("LoraLoader",))
-        required_inputs = _get_required_inputs(lora_loader_class)
+        lora_loader_class = resolve_node_class("Load LoRA", ("LoraLoader",))
+        required_inputs = get_required_inputs(lora_loader_class)
 
-        model_key, _ = _find_first_input(required_inputs, cls._LORA_MODEL_KEYS)
-        clip_key, _ = _find_first_input(required_inputs, cls._LORA_CLIP_KEYS)
-        lora_key, lora_input = _find_first_input(required_inputs, cls._LORA_NAME_KEYS)
-        strength_model_key, strength_model_input = _find_first_input(
+        model_key, _ = find_first_input(required_inputs, cls._LORA_MODEL_KEYS)
+        clip_key, _ = find_first_input(required_inputs, cls._LORA_CLIP_KEYS)
+        lora_key, lora_input = find_first_input(required_inputs, cls._LORA_NAME_KEYS)
+        strength_model_key, strength_model_input = find_first_input(
             required_inputs, cls._LORA_STRENGTH_MODEL_KEYS
         )
-        strength_clip_key, strength_clip_input = _find_first_input(
+        strength_clip_key, strength_clip_input = find_first_input(
             required_inputs, cls._LORA_STRENGTH_CLIP_KEYS
         )
 
@@ -271,7 +194,7 @@ class LoraStack5:
         strength: float,
     ):
         config = cls._resolve_lora_loader_config()
-        kwargs = _build_node_kwargs(
+        kwargs = build_required_kwargs(
             config["required"],
             {
                 config["model_key"]: model,
@@ -281,7 +204,7 @@ class LoraStack5:
                 config["strength_clip_key"]: float(strength),
             },
         )
-        result = _run_node(config["class"], kwargs)
+        result = run_node(config["class"], kwargs)
         if len(result) < 2:
             raise RuntimeError(
                 "Load LoRA node returned an unexpected output format; "

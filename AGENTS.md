@@ -9,6 +9,7 @@ This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__
 ## Repository Map
 
 - `__init__.py`: global node registration.
+- `comfy_reflection.py`: shared ComfyUI node/loader reflection helpers used by compatibility wrapper nodes.
 - `project.md`: long-form architecture and node behavior reference.
 - `requirements.txt`: optional Python dependencies (`pyyaml`, `watchdog`, `keyring`).
 - Node packages:
@@ -60,10 +61,14 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
   - `5 latent`
   - `6 seed`
 - Some nodes preserve extra `PIPE` tail values; do not truncate unless intentional.
+- Compatibility wrapper nodes (`model_loader_trio`, `model_loader_checkpoint_vae`, `pipe_ksampler`, `lora_stack`, `sampler_presets`) share reflection utilities from `comfy_reflection.py`; update the shared helper first when changing fallback class resolution or required-input handling.
 - `prompt_selector` dynamically generates classes at runtime from `data/prompts/`.
+- Prompt selector class names now append a stable hash suffix only when multiple categories normalize to the same legacy class key, avoiding registry collisions while preserving legacy names when unique.
 - Dynamic prompt selector nodes are grouped under the ComfyUI category path `Veilance/Prompts/Dynamic Lists`.
 - `prompt_selector` also registers `POST /prompt_selector/refresh` via `PromptServer`.
 - `nano_gpt` supports alias-based config profiles (`manual` vs `alias` mode). Alias metadata stores `custom_api_url`, `model`, and key-source metadata in `nano_gpt/aliases.json`, while API keys are resolved from OS keyring (`keyring`) or env vars.
+- `nano_gpt` image input requires Pillow and numpy at runtime; missing deps now return a clear node error instead of failing later during image conversion.
+- `nano_gpt` response caching is an in-memory LRU+TTL cache keyed by request payload plus auth scope (`config_mode`, alias name when used, API-key fingerprint), so cached responses do not leak across different credentials.
 - `nano_gpt` registers alias management routes:
   - `GET /veilance/nano_gpt/aliases`
   - `POST /veilance/nano_gpt/aliases/upsert`
@@ -71,7 +76,9 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - `save_image_civitai` is an output node that writes CivitAI-compatible metadata for PNG/JPG/WEBP and optionally embeds Comfy workflow metadata.
 - `save_image_civitai` prefers ComfyUI `folder_paths` output directory, with a local `./output` fallback when `folder_paths` is unavailable.
 - `image_sharpen` provides torch-first image post-processing nodes with an optional Pillow/numpy fallback for blur operations.
-- `film_grain` provides deterministic torch-based film grain with stock presets and adaptive luminance/detail masking for more natural placement.
+- `film_grain` provides deterministic torch-based film grain with stock presets, clumped band-limited grain synthesis, adaptive luminance/detail masking, stock-specific RGB chroma imbalance, and mild resolution-aware grain scaling.
+- `film_grain` exposes optional `clumpiness_scale` and `resolution_response_scale` inputs as stock-relative multipliers; the default `1.0` preserves each stock preset's internal tuning.
+- `workflow_utils` is organized into focused modules (`switch_nodes.py`, `image_nodes.py`, `helpers.py`, `registry.py`), while `workflow_utils/workflow_utils.py` remains the compatibility export surface for existing imports.
 - Root package registration loads node packages through a guarded import helper so one broken package does not prevent unrelated nodes from appearing in ComfyUI.
 - Root startup logs include a per-run package load summary (`loaded`, `skipped`, `nodes`) and list any skipped package names.
 

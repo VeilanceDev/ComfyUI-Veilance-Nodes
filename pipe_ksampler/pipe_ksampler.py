@@ -4,92 +4,16 @@ Pipe-aware KSampler node for ComfyUI.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Tuple
 
-
-def _resolve_node_class(display_name: str, fallback_class_names: Iterable[str]):
-    import nodes  # type: ignore
-
-    for class_name in fallback_class_names:
-        node_class = nodes.NODE_CLASS_MAPPINGS.get(class_name)
-        if node_class is not None:
-            return node_class
-
-    for class_name, mapped_display_name in nodes.NODE_DISPLAY_NAME_MAPPINGS.items():
-        if mapped_display_name == display_name:
-            node_class = nodes.NODE_CLASS_MAPPINGS.get(class_name)
-            if node_class is not None:
-                return node_class
-
-    raise RuntimeError(
-        f"Could not find ComfyUI node for '{display_name}'. "
-        f"Checked fallback class names: {list(fallback_class_names)}."
-    )
-
-
-def _get_required_inputs(node_class) -> Dict[str, Any]:
-    input_types = node_class.INPUT_TYPES()
-    required_inputs = input_types.get("required", {})
-    if not isinstance(required_inputs, dict):
-        return {}
-    return required_inputs
-
-
-def _extract_default_value(input_spec: Any) -> Any:
-    if isinstance(input_spec, tuple) and len(input_spec) > 1:
-        config = input_spec[1]
-        if isinstance(config, dict):
-            return config.get("default")
-    return None
-
-
-def _find_first_input(
-    required_inputs: Dict[str, Any],
-    candidates: Iterable[str],
-) -> Tuple[Optional[str], Any]:
-    for name in candidates:
-        if name in required_inputs:
-            return name, required_inputs[name]
-    return None, None
-
-
-def _build_node_kwargs(
-    required_inputs: Dict[str, Any],
-    explicit_values: Dict[str, Any],
-) -> Dict[str, Any]:
-    kwargs: Dict[str, Any] = {}
-    for input_name, input_spec in required_inputs.items():
-        if input_name in explicit_values and explicit_values[input_name] is not None:
-            kwargs[input_name] = explicit_values[input_name]
-            continue
-
-        default_value = _extract_default_value(input_spec)
-        if default_value is not None:
-            kwargs[input_name] = default_value
-            continue
-
-        raise RuntimeError(
-            f"Required node input '{input_name}' has no explicit value and no default."
-        )
-    return kwargs
-
-
-def _run_node(node_class, kwargs: Dict[str, Any]) -> Tuple[Any, ...]:
-    node = node_class()
-    function_name = getattr(node_class, "FUNCTION", None) or getattr(
-        node, "FUNCTION", None
-    )
-    if not function_name:
-        raise RuntimeError(f"Node class '{node_class.__name__}' has no FUNCTION.")
-
-    node_fn = getattr(node, function_name)
-    result = node_fn(**kwargs)
-
-    if isinstance(result, tuple):
-        return result
-    if isinstance(result, list):
-        return tuple(result)
-    return (result,)
+from ..comfy_reflection import (
+    build_required_kwargs,
+    extract_default_value,
+    find_first_input,
+    get_required_inputs,
+    resolve_node_class,
+    run_node,
+)
 
 
 def _seed_input_with_control(seed_input_spec: Any) -> Any:
@@ -131,33 +55,33 @@ class PipeKSamplerFull:
 
     @classmethod
     def _resolve_ksampler_config(cls) -> Dict[str, Any]:
-        ksampler_class = _resolve_node_class("KSampler", ("KSampler",))
-        required_inputs = _get_required_inputs(ksampler_class)
+        ksampler_class = resolve_node_class("KSampler", ("KSampler",))
+        required_inputs = get_required_inputs(ksampler_class)
 
-        model_key, model_input = _find_first_input(
+        model_key, model_input = find_first_input(
             required_inputs, cls._KSAMPLER_MODEL_KEYS
         )
-        positive_key, positive_input = _find_first_input(
+        positive_key, positive_input = find_first_input(
             required_inputs, cls._KSAMPLER_POSITIVE_KEYS
         )
-        negative_key, negative_input = _find_first_input(
+        negative_key, negative_input = find_first_input(
             required_inputs, cls._KSAMPLER_NEGATIVE_KEYS
         )
-        latent_key, latent_input = _find_first_input(
+        latent_key, latent_input = find_first_input(
             required_inputs, cls._KSAMPLER_LATENT_KEYS
         )
-        seed_key, seed_input = _find_first_input(required_inputs, cls._KSAMPLER_SEED_KEYS)
-        steps_key, steps_input = _find_first_input(
+        seed_key, seed_input = find_first_input(required_inputs, cls._KSAMPLER_SEED_KEYS)
+        steps_key, steps_input = find_first_input(
             required_inputs, cls._KSAMPLER_STEPS_KEYS
         )
-        cfg_key, cfg_input = _find_first_input(required_inputs, cls._KSAMPLER_CFG_KEYS)
-        sampler_key, sampler_input = _find_first_input(
+        cfg_key, cfg_input = find_first_input(required_inputs, cls._KSAMPLER_CFG_KEYS)
+        sampler_key, sampler_input = find_first_input(
             required_inputs, cls._KSAMPLER_SAMPLER_KEYS
         )
-        scheduler_key, scheduler_input = _find_first_input(
+        scheduler_key, scheduler_input = find_first_input(
             required_inputs, cls._KSAMPLER_SCHEDULER_KEYS
         )
-        denoise_key, denoise_input = _find_first_input(
+        denoise_key, denoise_input = find_first_input(
             required_inputs, cls._KSAMPLER_DENOISE_KEYS
         )
 
@@ -281,48 +205,48 @@ class PipeKSamplerFull:
 
     @classmethod
     def _encode_image_to_latent(cls, image, vae):
-        vae_encode_class = _resolve_node_class("VAE Encode", ("VAEEncode",))
-        required_inputs = _get_required_inputs(vae_encode_class)
+        vae_encode_class = resolve_node_class("VAE Encode", ("VAEEncode",))
+        required_inputs = get_required_inputs(vae_encode_class)
 
-        image_key, _ = _find_first_input(required_inputs, cls._VAE_ENCODE_IMAGE_KEYS)
-        vae_key, _ = _find_first_input(required_inputs, cls._VAE_ENCODE_VAE_KEYS)
+        image_key, _ = find_first_input(required_inputs, cls._VAE_ENCODE_IMAGE_KEYS)
+        vae_key, _ = find_first_input(required_inputs, cls._VAE_ENCODE_VAE_KEYS)
         if image_key is None or vae_key is None:
             raise RuntimeError(
                 "Could not resolve required VAE Encode inputs. "
                 f"Available keys: {list(required_inputs.keys())}."
             )
 
-        kwargs = _build_node_kwargs(
+        kwargs = build_required_kwargs(
             required_inputs,
             {
                 image_key: image,
                 vae_key: vae,
             },
         )
-        result = _run_node(vae_encode_class, kwargs)
+        result = run_node(vae_encode_class, kwargs)
         return result[0]
 
     @classmethod
     def _decode_latent_to_image(cls, latent, vae):
-        vae_decode_class = _resolve_node_class("VAE Decode", ("VAEDecode",))
-        required_inputs = _get_required_inputs(vae_decode_class)
+        vae_decode_class = resolve_node_class("VAE Decode", ("VAEDecode",))
+        required_inputs = get_required_inputs(vae_decode_class)
 
-        samples_key, _ = _find_first_input(required_inputs, cls._VAE_DECODE_SAMPLES_KEYS)
-        vae_key, _ = _find_first_input(required_inputs, cls._VAE_DECODE_VAE_KEYS)
+        samples_key, _ = find_first_input(required_inputs, cls._VAE_DECODE_SAMPLES_KEYS)
+        vae_key, _ = find_first_input(required_inputs, cls._VAE_DECODE_VAE_KEYS)
         if samples_key is None or vae_key is None:
             raise RuntimeError(
                 "Could not resolve required VAE Decode inputs. "
                 f"Available keys: {list(required_inputs.keys())}."
             )
 
-        kwargs = _build_node_kwargs(
+        kwargs = build_required_kwargs(
             required_inputs,
             {
                 samples_key: latent,
                 vae_key: vae,
             },
         )
-        result = _run_node(vae_decode_class, kwargs)
+        result = run_node(vae_decode_class, kwargs)
         return result[0]
 
     @classmethod
@@ -340,7 +264,7 @@ class PipeKSamplerFull:
         denoise: float,
     ):
         config = cls._resolve_ksampler_config()
-        kwargs = _build_node_kwargs(
+        kwargs = build_required_kwargs(
             config["required"],
             {
                 config["model_key"]: model,
@@ -355,23 +279,23 @@ class PipeKSamplerFull:
                 config["denoise_key"]: float(denoise),
             },
         )
-        result = _run_node(config["class"], kwargs)
+        result = run_node(config["class"], kwargs)
         return result[0]
 
     @classmethod
     def _preview_image(cls, image, prompt=None, extra_pnginfo=None):
         try:
-            preview_class = _resolve_node_class("Preview Image", ("PreviewImage",))
+            preview_class = resolve_node_class("Preview Image", ("PreviewImage",))
         except RuntimeError:
             return
 
-        required_inputs = _get_required_inputs(preview_class)
-        images_key, _ = _find_first_input(required_inputs, cls._PREVIEW_IMAGES_KEYS)
+        required_inputs = get_required_inputs(preview_class)
+        images_key, _ = find_first_input(required_inputs, cls._PREVIEW_IMAGES_KEYS)
         if images_key is None:
             return
 
         try:
-            kwargs = _build_node_kwargs(required_inputs, {images_key: image})
+            kwargs = build_required_kwargs(required_inputs, {images_key: image})
         except RuntimeError:
             return
         preview_node = preview_class()

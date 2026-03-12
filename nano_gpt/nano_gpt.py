@@ -5,10 +5,12 @@ NanoGPT text/vision generation node for ComfyUI.
 from __future__ import annotations
 
 import base64
+from collections import OrderedDict
 import hashlib
 import io
 import json
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -22,10 +24,14 @@ try:
     from PIL import Image
     import numpy as np
 except ImportError:
-    pass
+    torch = None  # type: ignore
+    Image = None  # type: ignore
+    np = None  # type: ignore
 
-# Simple in-memory cache
-_RESPONSE_CACHE: Dict[str, str] = {}
+_RESPONSE_CACHE_MAX_SIZE = 128
+_RESPONSE_CACHE_TTL_SECONDS = 300.0
+_RESPONSE_CACHE: "OrderedDict[str, Tuple[float, str]]" = OrderedDict()
+_RESPONSE_CACHE_LOCK = threading.RLock()
 _LOCAL_API_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
 
 
@@ -39,6 +45,80 @@ def _is_local_api_url(url: str) -> bool:
     except Exception:
         return False
     return host in _LOCAL_API_HOSTS
+
+
+def _cache_prune_unlocked(now: Optional[float] = None) -> None:
+    current_time = time.time() if now is None else now
+
+    expired_keys = [
+        cache_key
+        for cache_key, (created_at, _) in _RESPONSE_CACHE.items()
+        if current_time - created_at >= _RESPONSE_CACHE_TTL_SECONDS
+    ]
+    for cache_key in expired_keys:
+        _RESPONSE_CACHE.pop(cache_key, None)
+
+    while len(_RESPONSE_CACHE) > _RESPONSE_CACHE_MAX_SIZE:
+        _RESPONSE_CACHE.popitem(last=False)
+
+
+def _response_cache_get(cache_key: str) -> Optional[str]:
+    now = time.time()
+    with _RESPONSE_CACHE_LOCK:
+        cache_entry = _RESPONSE_CACHE.get(cache_key)
+        if cache_entry is None:
+            _cache_prune_unlocked(now)
+            return None
+
+        created_at, cached_text = cache_entry
+        if now - created_at >= _RESPONSE_CACHE_TTL_SECONDS:
+            _RESPONSE_CACHE.pop(cache_key, None)
+            _cache_prune_unlocked(now)
+            return None
+
+        _RESPONSE_CACHE.move_to_end(cache_key)
+        return cached_text
+
+
+def _response_cache_set(cache_key: str, text: str) -> None:
+    now = time.time()
+    with _RESPONSE_CACHE_LOCK:
+        _cache_prune_unlocked(now)
+        _RESPONSE_CACHE[cache_key] = (now, text)
+        _RESPONSE_CACHE.move_to_end(cache_key)
+        _cache_prune_unlocked(now)
+
+
+def _api_key_fingerprint(api_key: str) -> str:
+    if not api_key:
+        return ""
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
+
+
+def _build_response_cache_key(
+    *,
+    data: Dict[str, Any],
+    base_url: str,
+    api_provider: str,
+    config_mode: str,
+    alias_name: str,
+    api_key: str,
+) -> str:
+    cache_scope = {
+        "base_url": base_url,
+        "api_provider": api_provider,
+        "config_mode": config_mode,
+        "alias_name": (alias_name or "").strip() if config_mode == "alias" else "",
+        "api_key_fingerprint": _api_key_fingerprint(api_key),
+    }
+    cache_key_data = json.dumps(
+        {
+            "request": data,
+            "scope": cache_scope,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(cache_key_data.encode("utf-8")).hexdigest()
 
 
 class NanoGPTTextGenerator:
@@ -110,8 +190,24 @@ class NanoGPTTextGenerator:
     FUNCTION = "generate_text"
     CATEGORY = "Veilance/Utils/Prompts"
 
-    def _tensor_to_base64_data_uri(self, input_image: Any) -> str:
-        """Converts a ComfyUI image tensor [B, H, W, C] to a base64 encoded jpeg data URI."""
+    @staticmethod
+    def _image_dependency_error() -> str:
+        missing = []
+        if Image is None:
+            missing.append("Pillow")
+        if np is None:
+            missing.append("numpy")
+
+        return (
+            "NanoGPT image input requires the following runtime dependencies: "
+            + ", ".join(missing)
+        )
+
+    def _tensor_to_base64_data_uri(self, input_image: Any) -> Tuple[Optional[str], str]:
+        """Convert a ComfyUI image tensor [B, H, W, C] to a base64-encoded JPEG data URI."""
+        if Image is None or np is None:
+            return None, self._image_dependency_error()
+
         try:
             image = input_image[0]
             i = 255.0 * image.cpu().numpy()
@@ -120,10 +216,10 @@ class NanoGPTTextGenerator:
             buffered = io.BytesIO()
             img.save(buffered, format="JPEG", quality=95)
             img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-            return f"data:image/jpeg;base64,{img_str}"
+            return f"data:image/jpeg;base64,{img_str}", ""
         except Exception as e:
             print(f"[NanoGPT] Error converting image: {e}")
-            return ""
+            return None, f"Failed to encode image input: {e}"
 
     def _resolve_alias_settings(self, alias_name: str) -> Tuple[Optional[Dict[str, Any]], str]:
         alias_name = (alias_name or "").strip()
@@ -285,8 +381,10 @@ class NanoGPTTextGenerator:
         user_content = [{"type": "text", "text": prompt}]
 
         if images is not None:
-            base64_uri = self._tensor_to_base64_data_uri(images)
-            if base64_uri:
+            base64_uri, image_error = self._tensor_to_base64_data_uri(images)
+            if image_error:
+                return (f"Error: {image_error}", "[]", prompt)
+            if base64_uri is not None:
                 user_content.append(
                     {
                         "type": "image_url",
@@ -314,11 +412,18 @@ class NanoGPTTextGenerator:
 
         messages_json_str = json.dumps(messages, indent=2)
 
-        cache_key_data = json.dumps(data, sort_keys=True) + base_url
-        cache_hash = hashlib.sha256(cache_key_data.encode("utf-8")).hexdigest()
-        if cache_hash in _RESPONSE_CACHE:
+        cache_hash = _build_response_cache_key(
+            data=data,
+            base_url=base_url,
+            api_provider=api_provider,
+            config_mode=str(config_mode),
+            alias_name=alias_name,
+            api_key=api_key,
+        )
+        cached_text = _response_cache_get(cache_hash)
+        if cached_text is not None:
             print(f"[NanoGPT] Returning cached response for seed {seed}")
-            return (_RESPONSE_CACHE[cache_hash], messages_json_str, prompt)
+            return (cached_text, messages_json_str, prompt)
 
         url = f"{base_url}/chat/completions"
         headers = {
@@ -342,7 +447,7 @@ class NanoGPTTextGenerator:
                     result = json.loads(response.read().decode("utf-8"))
                     if "choices" in result and len(result["choices"]) > 0:
                         text = result["choices"][0].get("message", {}).get("content", "")
-                        _RESPONSE_CACHE[cache_hash] = text
+                        _response_cache_set(cache_hash, text)
                         return (text, messages_json_str, prompt)
                     error_msg = f"Error: Unexpected response format: {result}"
                     return (error_msg, messages_json_str, prompt)

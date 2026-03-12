@@ -6,8 +6,9 @@ Supports YAML, CSV, and JSON formats. Outputs positive and negative prompts.
 
 from __future__ import annotations
 
+import hashlib
 import threading
-from typing import Dict, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 from .file_utils import (
     DISABLED_OPTION,
@@ -169,6 +170,37 @@ def create_category_node_class(category_name: str):
     return CategoryPromptNode
 
 
+def _legacy_class_name_for_category(category: str) -> str:
+    safe_name = category.replace("/", "_")
+    return (
+        f"{PROMPT_SELECTOR_CLASS_PREFIX}"
+        f"{safe_name.title().replace(' ', '').replace('_', '')}"
+    )
+
+
+def _hashed_class_name_for_category(category: str) -> str:
+    digest = hashlib.sha1(category.encode("utf-8")).hexdigest()[:8]
+    return f"{_legacy_class_name_for_category(category)}_{digest}"
+
+
+def _build_class_name_map(categories: List[str]) -> Dict[str, str]:
+    grouped_categories: Dict[str, List[str]] = {}
+    for category in categories:
+        legacy_class_name = _legacy_class_name_for_category(category)
+        grouped_categories.setdefault(legacy_class_name, []).append(category)
+
+    class_name_map: Dict[str, str] = {}
+    for legacy_class_name, grouped in grouped_categories.items():
+        if len(grouped) == 1:
+            class_name_map[grouped[0]] = legacy_class_name
+            continue
+
+        for category in sorted(grouped):
+            class_name_map[category] = _hashed_class_name_for_category(category)
+
+    return class_name_map
+
+
 def _build_mappings() -> Tuple[Dict[str, type], Dict[str, str], Dict[str, str]]:
     """
     Build node mappings dynamically based on discovered category folders.
@@ -178,13 +210,12 @@ def _build_mappings() -> Tuple[Dict[str, type], Dict[str, str], Dict[str, str]]:
     display_mappings: Dict[str, str] = {}
     class_to_category: Dict[str, str] = {}
 
-    for category in discover_categories():
+    categories = discover_categories()
+    class_name_map = _build_class_name_map(categories)
+
+    for category in categories:
         node_class = create_category_node_class(category)
-        safe_name = category.replace("/", "_")
-        class_name = (
-            f"{PROMPT_SELECTOR_CLASS_PREFIX}"
-            f"{safe_name.title().replace(' ', '').replace('_', '')}"
-        )
+        class_name = class_name_map[category]
         display_name = (
             f"Prompts: {category.replace('/', ' ').replace('_', ' ').title()}"
         )

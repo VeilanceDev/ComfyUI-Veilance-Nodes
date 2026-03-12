@@ -21,6 +21,10 @@ The root [`__init__.py`](__init__.py) serves as the main entry point that:
 - Imports and aggregates `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS` from all node modules
 - Exports `WEB_DIRECTORY` pointing to `./js` for frontend extensions
 
+### Shared Compatibility Helpers
+
+[`comfy_reflection.py`](comfy_reflection.py) centralizes ComfyUI node reflection helpers used by compatibility wrapper nodes. It handles fallback class resolution, required-input discovery, default extraction, kwargs building, and node execution normalization so loader/sampler wrappers do not drift from each other.
+
 ### Node Module Pattern
 
 Each node is organized in its own subdirectory with a consistent structure:
@@ -198,6 +202,8 @@ A text/vision prompt generation node that calls OpenAI-compatible `/chat/complet
   - `env` (lookup from configured env var name)
   - `none` (no API key)
 - API keys are never persisted in workflow JSON
+- Response caching uses an in-memory LRU+TTL cache and includes auth scope in the cache key so responses are not reused across different aliases or API keys
+- IMAGE input now returns a clear node error when Pillow/numpy are unavailable instead of silently dropping the image payload
 
 **Alias API Endpoints:**
 - `GET /veilance/nano_gpt/aliases`
@@ -259,7 +265,7 @@ An output node that saves image batches as PNG, JPG, or WEBP while embedding Civ
 
 **Location:** [`film_grain/`](film_grain/)
 
-A torch-first post-processing node that adds adaptive film-style grain with stock presets, deterministic seeded noise, and tone/detail-aware placement so the grain reads more like scanned film than flat digital noise.
+A torch-first post-processing node that adds adaptive film-style grain with stock presets, deterministic seeded noise, tone/detail-aware placement, clumped band-limited grain structure, and restrained per-channel chroma imbalance so the result reads more like scanned film than flat digital noise.
 
 **Files:**
 - [`film_grain.py`](film_grain/film_grain.py) - Node implementation and grain synthesis helpers
@@ -272,13 +278,18 @@ A torch-first post-processing node that adds adaptive film-style grain with stoc
 - `color_amount` (FLOAT): Scales chroma grain contribution for color stocks
 - `seed` (INT): Deterministic grain seed with control-after-generate enabled
 
+**Optional Inputs:**
+- `clumpiness_scale` (FLOAT): Multiplies the stock's built-in clumping/aggregation strength; `1.0` preserves the preset look
+- `resolution_response_scale` (FLOAT): Multiplies how strongly the stock adapts grain size to image resolution; `1.0` preserves the preset look
+
 **Outputs:**
 - `image` (IMAGE): Image with film grain applied
 
 **Behavior:**
-- Builds grain from multiple seeded noise scales to avoid synthetic flat noise patterns
-- Applies most of the grain as luminance variation, with optional restrained chroma grain for color stocks
-- Adapts grain visibility by luminance and local detail so highlights roll off and busy edges get less grain
+- Builds grain from band-limited seeded noise layers plus a clump envelope so the texture has spatial structure instead of single-pixel white noise
+- Applies most of the grain as luminance variation, with optional restrained chroma grain for color stocks using stock-specific channel imbalance
+- Adapts grain visibility by luminance and local detail so highlights roll off, midtones carry more grain, and busy edges get less grain
+- Scales effective grain size mildly with image resolution so the grain character changes more naturally across output sizes
 - Keeps output clamped to `[0, 1]` and preserves batch/image tensor shape
 
 **Category:** `Veilance/Image`
@@ -386,6 +397,10 @@ A dynamic node system that generates one node per category folder. Each category
 
 **Frontend:**
 - [`js/prompt_selector.js`](js/prompt_selector.js) - Searchable dropdowns with keyboard navigation, refresh button, context menu, and live widget reconciliation
+
+**Class Naming:**
+- Legacy dynamic class names are preserved when a category normalizes to a unique class key
+- If multiple categories would normalize to the same class key, prompt selector appends a stable short hash suffix to each colliding class name to avoid registry collisions
 
 **Data Structure:**
 ```

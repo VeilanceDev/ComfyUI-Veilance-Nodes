@@ -5,32 +5,9 @@ Outputs KSampler parameter sets from curated presets.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
-
-def _resolve_node_class(display_name: str, fallback_class_names: Iterable[str]):
-    import nodes  # type: ignore
-
-    for class_name in fallback_class_names:
-        node_class = nodes.NODE_CLASS_MAPPINGS.get(class_name)
-        if node_class is not None:
-            return node_class
-
-    for class_name, mapped_display_name in nodes.NODE_DISPLAY_NAME_MAPPINGS.items():
-        if mapped_display_name == display_name:
-            node_class = nodes.NODE_CLASS_MAPPINGS.get(class_name)
-            if node_class is not None:
-                return node_class
-
-    return None
-
-
-def _extract_options(input_spec: Any) -> List[str]:
-    if isinstance(input_spec, tuple) and input_spec:
-        values = input_spec[0]
-        if isinstance(values, (list, tuple)):
-            return [str(value) for value in values]
-    return []
+from ..comfy_reflection import extract_options, resolve_node_class
 
 
 class SamplerPresets:
@@ -106,8 +83,9 @@ class SamplerPresets:
         fallback_samplers = ["euler", "euler_a", "dpmpp_2m", "lcm"]
         fallback_schedulers = ["normal", "karras", "simple", "sgm_uniform"]
 
-        ksampler_class = _resolve_node_class("KSampler", ("KSampler",))
-        if ksampler_class is None:
+        try:
+            ksampler_class = resolve_node_class("KSampler", ("KSampler",))
+        except RuntimeError:
             return fallback_samplers, fallback_schedulers
 
         try:

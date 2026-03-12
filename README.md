@@ -62,6 +62,16 @@ Current extensions:
 - `js/nano_gpt.js`
 - `js/text_utils.js`
 
+## Workflow Utils Structure
+
+`workflow_utils/` is split by concern so small utility nodes can evolve without accumulating unrelated logic in one file:
+
+- `switch_nodes.py`: `Any Switch` nodes
+- `image_nodes.py`: `Image Size & Empty Latent`
+- `helpers.py`: shared input-schema and latent helpers
+- `registry.py`: exported node/display-name mappings
+- `workflow_utils.py`: compatibility re-export surface for existing imports
+
 ## NanoGPT Alias Profiles
 
 `NanoGPT Text Generator` supports two config modes:
@@ -86,5 +96,7 @@ Open the alias manager from:
 - `watchdog` is optional but enables auto-refresh for prompt file changes.
 - `pyyaml` is optional but required for YAML prompt files.
 - `keyring` is optional but required for encrypted API key storage in NanoGPT aliases.
+- `Film Grain` uses deterministic seeded grain with tone-aware masking, clumped spatial structure, and stock-specific chroma variation rather than plain per-pixel noise.
+- `Film Grain` also exposes optional `clumpiness_scale` and `resolution_response_scale` controls for per-node tuning while keeping stock defaults at `1.0`.
 
 For detailed architecture and development notes, see [`project.md`](project.md).
