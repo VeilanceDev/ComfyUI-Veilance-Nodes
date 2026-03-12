@@ -41,7 +41,7 @@ node_name/
 
 ## Current Nodes
 
-### Model Loader Trio
+### Load Model + Clip + VAE
 
 **Location:** [`model_loader_trio/`](model_loader_trio/)
 
@@ -65,11 +65,11 @@ A convenience loader node that combines ComfyUI's built-in model loaders into on
 - `clip` (CLIP): Loaded CLIP model
 - `vae` (VAE): Loaded VAE model
 
-**Category:** `loaders`
+**Category:** `Veilance/Loaders`
 
 ---
 
-### Model Loader Trio + Params
+### Load Model + Clip + VAE (Adv.)
 
 **Location:** [`model_loader_trio/`](model_loader_trio/)
 
@@ -101,7 +101,63 @@ A combined model loader node with extra workflow widgets for prompt and latent s
 - `negative_conditioning` (CONDITIONING): CLIP-encoded conditioning from `negative_prompt`
 - `latent_image` (LATENT): Empty latent initialized from `width`, `height`, and `batch_size`
 
-**Category:** `loaders`
+**Category:** `Veilance/Loaders`
+
+---
+
+### Load Checkpoint + VAE
+
+**Location:** [`model_loader_checkpoint_vae/`](model_loader_checkpoint_vae/)
+
+A checkpoint-based loader that reuses the built-in checkpoint loader for `model` and `clip`, while letting the node use either the baked checkpoint VAE or an external VAE file.
+
+**Files:**
+- [`model_loader_checkpoint_vae.py`](model_loader_checkpoint_vae/model_loader_checkpoint_vae.py) - Node implementation
+
+**Inputs:**
+- `checkpoint_model` (COMBO): Checkpoint selection (same source/options as built-in `Load Checkpoint`)
+- `vae_model` (COMBO): VAE selection with a `(baked)` option to use the checkpoint VAE
+- `pipe` (PIPE, optional): Incoming pipe passthrough; first 3 fields are replaced with this node's loaded `model`, `clip`, `vae`
+
+**Outputs:**
+- `pipe` (PIPE): Pipe tuple `(model, clip, vae, ...)` (preserves incoming tail fields after index 3)
+- `model` (MODEL): Loaded diffusion model from checkpoint
+- `clip` (CLIP): Loaded CLIP model from checkpoint
+- `vae` (VAE): Effective VAE, either baked or externally loaded
+
+**Category:** `Veilance/Loaders`
+
+---
+
+### Load Checkpoint + VAE (Adv.)
+
+**Location:** [`model_loader_checkpoint_vae/`](model_loader_checkpoint_vae/)
+
+An advanced checkpoint-based loader that also prepares prompt conditioning and an empty latent image so the node can seed a full `PIPE` in one step.
+
+**Files:**
+- [`model_loader_checkpoint_vae.py`](model_loader_checkpoint_vae/model_loader_checkpoint_vae.py) - Node implementation
+
+**Inputs:**
+- `checkpoint_model` (COMBO): Checkpoint selection
+- `vae_model` (COMBO): VAE selection with a `(baked)` option
+- `width` (INT): Width widget (default: 1024)
+- `height` (INT): Height widget (default: 1024)
+- `positive_prompt` (STRING): Positive prompt text
+- `negative_prompt` (STRING): Negative prompt text
+- `batch_size` (INT): Batch size widget (default: 1)
+- `pipe` (PIPE, optional): Incoming pipe passthrough; first 6 fields are replaced with this node's outputs
+
+**Outputs:**
+- `pipe` (PIPE): Pipe tuple `(model, clip, vae, positive_conditioning, negative_conditioning, latent_image, ...)` (preserves incoming tail fields after index 6)
+- `model` (MODEL): Loaded diffusion model from checkpoint
+- `clip` (CLIP): Loaded CLIP model from checkpoint
+- `vae` (VAE): Effective VAE, either baked or externally loaded
+- `positive_conditioning` (CONDITIONING): CLIP-encoded conditioning from `positive_prompt`
+- `negative_conditioning` (CONDITIONING): CLIP-encoded conditioning from `negative_prompt`
+- `latent_image` (LATENT): Empty latent initialized from `width`, `height`, and `batch_size`
+
+**Category:** `Veilance/Loaders`
 
 ---
 
@@ -291,6 +347,38 @@ A torch-first post-processing node that adds adaptive film-style grain with stoc
 - Adapts grain visibility by luminance and local detail so highlights roll off, midtones carry more grain, and busy edges get less grain
 - Scales effective grain size mildly with image resolution so the grain character changes more naturally across output sizes
 - Keeps output clamped to `[0, 1]` and preserves batch/image tensor shape
+
+**Category:** `Veilance/Image`
+
+---
+
+### Jpegify
+
+**Location:** [`image_artifacts/`](image_artifacts/)
+
+A post-processing node that simulates JPEG re-encoding artifacts in memory, with one main amount control and a small set of expert options for quality range, repeated compression passes, and chroma subsampling behavior.
+
+**Files:**
+- [`image_artifacts.py`](image_artifacts/image_artifacts.py) - Node implementation and JPEG encode/decode helpers
+
+**Inputs:**
+- `image` (IMAGE): Input image batch
+- `amount` (FLOAT): Main artifact intensity control; `0.0` short-circuits and returns the original image
+- `quality_min` (INT): Lowest JPEG quality used when `amount` approaches `1.0`
+- `quality_max` (INT): Highest JPEG quality used near low nonzero `amount` values
+- `passes` (INT): Number of repeated JPEG round-trips at the computed quality
+- `chroma_subsampling` (COMBO): `auto`, `4:2:0`, or `4:4:4`
+
+**Outputs:**
+- `image` (IMAGE): Image batch with JPEG-style compression artifacts applied
+
+**Behavior:**
+- Maps `amount` through a nonlinear curve to interpolate between `quality_max` and `quality_min`
+- Uses in-memory Pillow JPEG encode/decode passes rather than approximating artifacts with convolutions
+- Processes RGB channels through JPEG while preserving alpha or any extra non-RGB channels unchanged
+- Treats single-channel and uncommon low-channel tensors as grayscale-like input, then restores the original channel count
+- Keeps output clamped to `[0, 1]` and preserves batch shape and tensor dtype
+- Raises a clear runtime error if Pillow or numpy are unavailable at runtime
 
 **Category:** `Veilance/Image`
 

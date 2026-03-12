@@ -1,5 +1,5 @@
 """
-Model Loader Trio Node for ComfyUI.
+Model + CLIP + VAE loader nodes for ComfyUI.
 Loads Diffusion Model, CLIP, and VAE in one node.
 """
 

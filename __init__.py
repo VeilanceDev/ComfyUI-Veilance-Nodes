@@ -47,6 +47,7 @@ _NODE_PACKAGE_ORDER = [
     "save_image_civitai",
     "image_sharpen",
     "film_grain",
+    "image_artifacts",
     "text_utils",
     "image_adjustments",
     "workflow_utils",

@@ -18,8 +18,10 @@ pip install -r requirements.txt
 - `Resolution Selector` (`Veilance/Utils`)
 - `Prompt Selector` (dynamic category nodes from `data/prompts/`)
 - `Prompt Cleaner` (`Veilance/Utils/Prompts`)
-- `Model Loader Trio`
-- `Model Loader Checkpoint + VAE`
+- `Load Model + Clip + VAE`
+- `Load Model + Clip + VAE (Adv.)`
+- `Load Checkpoint + VAE`
+- `Load Checkpoint + VAE (Adv.)`
 - `Pipe Builder`
 - `Pipe Router`
 - `KSampler (Pipe Full)`
@@ -29,6 +31,7 @@ pip install -r requirements.txt
 - `NanoGPT Text Generator` (`Veilance/Utils/Prompts`)
 - `Save Image (CivitAI Metadata)` (`Veilance/Image`)
 - `Film Grain` (`Veilance/Image`)
+- `Jpegify` (`Veilance/Image`)
 - `Sharpen` (`Veilance/Image/Sharpen`)
 - `Unsharp Mask` (`Veilance/Image/Sharpen`)
 - `Edge Sharpen` (`Veilance/Image/Sharpen`)
@@ -98,5 +101,6 @@ Open the alias manager from:
 - `keyring` is optional but required for encrypted API key storage in NanoGPT aliases.
 - `Film Grain` uses deterministic seeded grain with tone-aware masking, clumped spatial structure, and stock-specific chroma variation rather than plain per-pixel noise.
 - `Film Grain` also exposes optional `clumpiness_scale` and `resolution_response_scale` controls for per-node tuning while keeping stock defaults at `1.0`.
+- `Jpegify` simulates JPEG re-encoding artifacts in memory with adjustable intensity, pass count, and chroma subsampling.
 
 For detailed architecture and development notes, see [`project.md`](project.md).

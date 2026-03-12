@@ -1,5 +1,5 @@
 """
-Checkpoint + VAE Model Loader node for ComfyUI.
+Checkpoint + VAE model loader nodes for ComfyUI.
 Loads MODEL+CLIP from checkpoint and VAE from either checkpoint or external VAE loader.
 """
 

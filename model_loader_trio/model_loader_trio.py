@@ -415,6 +415,6 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "ModelLoaderTrio": "Load Model Trio",
-    "ModelLoaderTrioWithParams": "Load Model Trio + Params",
+    "ModelLoaderTrio": "Load Model + Clip + VAE",
+    "ModelLoaderTrioWithParams": "Load Model + Clip + VAE (Adv.)",
 }

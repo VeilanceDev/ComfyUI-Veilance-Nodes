@@ -28,6 +28,7 @@ This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__
   - `save_image_civitai/`
   - `image_sharpen/`
   - `film_grain/`
+  - `image_artifacts/`
   - `text_utils/`
   - `image_adjustments/`
   - `workflow_utils/`
@@ -62,6 +63,8 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
   - `6 seed`
 - Some nodes preserve extra `PIPE` tail values; do not truncate unless intentional.
 - Compatibility wrapper nodes (`model_loader_trio`, `model_loader_checkpoint_vae`, `pipe_ksampler`, `lora_stack`, `sampler_presets`) share reflection utilities from `comfy_reflection.py`; update the shared helper first when changing fallback class resolution or required-input handling.
+- `model_loader_trio` keeps legacy class keys (`ModelLoaderTrio`, `ModelLoaderTrioWithParams`) for workflow compatibility, but the display names are `Load Model + Clip + VAE` and `Load Model + Clip + VAE (Adv.)`.
+- `model_loader_checkpoint_vae` exports both `ModelLoaderCheckpointVAE` and `ModelLoaderCheckpointVAEWithParams`; the advanced variant adds prompt conditioning and empty latent outputs while preserving the standard `PIPE` slot order.
 - `prompt_selector` dynamically generates classes at runtime from `data/prompts/`.
 - Prompt selector class names now append a stable hash suffix only when multiple categories normalize to the same legacy class key, avoiding registry collisions while preserving legacy names when unique.
 - Dynamic prompt selector nodes are grouped under the ComfyUI category path `Veilance/Prompts/Dynamic Lists`.
@@ -78,6 +81,7 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - `image_sharpen` provides torch-first image post-processing nodes with an optional Pillow/numpy fallback for blur operations.
 - `film_grain` provides deterministic torch-based film grain with stock presets, clumped band-limited grain synthesis, adaptive luminance/detail masking, stock-specific RGB chroma imbalance, and mild resolution-aware grain scaling.
 - `film_grain` exposes optional `clumpiness_scale` and `resolution_response_scale` inputs as stock-relative multipliers; the default `1.0` preserves each stock preset's internal tuning.
+- `image_artifacts` provides a Pillow-backed `Jpegify` node that simulates JPEG re-encode artifacts in memory, preserves non-RGB extra channels, and raises a clear runtime error when Pillow/numpy are unavailable.
 - `workflow_utils` is organized into focused modules (`switch_nodes.py`, `image_nodes.py`, `helpers.py`, `registry.py`), while `workflow_utils/workflow_utils.py` remains the compatibility export surface for existing imports.
 - Root package registration loads node packages through a guarded import helper so one broken package does not prevent unrelated nodes from appearing in ComfyUI.
 - Root startup logs include a per-run package load summary (`loaded`, `skipped`, `nodes`) and list any skipped package names.
@@ -100,7 +104,7 @@ When reviewing code, prioritize:
 5. Network-call robustness for `nano_gpt` (timeouts, retries, auth handling).
 6. Alias/key handling safety in `nano_gpt` (`keyring` availability, env fallback behavior, no secret leakage to workflow payloads).
 7. Metadata compatibility and format-specific save behavior in `save_image_civitai` (PNG text chunks vs JPG/WEBP EXIF).
-8. Image-processing safety in `image_sharpen` and `film_grain` (batch shape preservation, clamping, deterministic noise behavior, and graceful runtime handling).
+8. Image-processing safety in `image_sharpen`, `film_grain`, and `image_artifacts` (batch shape preservation, clamping, deterministic behavior where applicable, preserved extra channels, and graceful runtime handling).
 
 ## Local Validation
 
