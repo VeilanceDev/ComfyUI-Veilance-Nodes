@@ -32,6 +32,14 @@ pip install -r requirements.txt
 - `Sharpen` (`Veilance/Image/Sharpen`)
 - `Unsharp Mask` (`Veilance/Image/Sharpen`)
 - `Edge Sharpen` (`Veilance/Image/Sharpen`)
+- `String Combiner` (`Veilance/Utils/Prompts`)
+- `Text Search & Replace` (`Veilance/Utils/Prompts`)
+- `Vignette` (`Veilance/Image`)
+- `Basic Color Adjust` (`Veilance/Image`)
+- `Crop to Ratio` (`Veilance/Image`)
+- `Any Switch` (`Veilance/Utils`)
+- `Any Switch (Inverse)` (`Veilance/Utils`)
+- `Image Size & Empty Latent` (`Veilance/Utils`)
 
 ## Prompt Selector Data
 
@@ -52,6 +60,7 @@ Current extensions:
 - `js/prompt_selector.js`
 - `js/lora_stack.js`
 - `js/nano_gpt.js`
+- `js/text_utils.js`
 
 ## NanoGPT Alias Profiles
 

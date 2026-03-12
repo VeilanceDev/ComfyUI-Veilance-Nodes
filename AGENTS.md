@@ -27,6 +27,9 @@ This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__
   - `save_image_civitai/`
   - `image_sharpen/`
   - `film_grain/`
+  - `text_utils/`
+  - `image_adjustments/`
+  - `workflow_utils/`
 - Frontend extensions: `js/`
 - Prompt data: `data/prompts/`
 
