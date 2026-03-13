@@ -83,8 +83,11 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - `film_grain` exposes optional `clumpiness_scale` and `resolution_response_scale` inputs as stock-relative multipliers; the default `1.0` preserves each stock preset's internal tuning.
 - `image_artifacts` provides a Pillow-backed `Jpegify` node that simulates JPEG re-encode artifacts in memory, preserves non-RGB extra channels, and raises a clear runtime error when Pillow/numpy are unavailable.
 - `workflow_utils` is organized into focused modules (`switch_nodes.py`, `image_nodes.py`, `helpers.py`, `registry.py`), while `workflow_utils/workflow_utils.py` remains the compatibility export surface for existing imports.
+- `workflow_utils` also includes `global_nodes.py` for `Global Sampler + Scheduler` and `Global Seed`; `js/global_controls.js` propagates those widget values to matching sampler/scheduler/seed widgets across the loaded graph.
+- `workflow_utils` also includes `variable_nodes.py` for `Set Variable` and `Get Variable`; `Get Variable` resolves a matching `Set Variable` by exact `name` from prompt metadata at execution time, expands through `VeilanceAnySwitch` to preserve arbitrary upstream datatypes, and raises a clear runtime error when names are missing or duplicated.
 - Root package registration loads node packages through a guarded import helper so one broken package does not prevent unrelated nodes from appearing in ComfyUI.
 - Root startup logs include a per-run package load summary (`loaded`, `skipped`, `nodes`) and list any skipped package names.
+- `resolution_selector` now outputs `width`, `height`, `megapixels`, and `aspect_ratio_actual`; the old `pixel_delta` output has been removed.
 
 ## External/API Node Notes
 
@@ -105,6 +108,7 @@ When reviewing code, prioritize:
 6. Alias/key handling safety in `nano_gpt` (`keyring` availability, env fallback behavior, no secret leakage to workflow payloads).
 7. Metadata compatibility and format-specific save behavior in `save_image_civitai` (PNG text chunks vs JPG/WEBP EXIF).
 8. Image-processing safety in `image_sharpen`, `film_grain`, and `image_artifacts` (batch shape preservation, clamping, deterministic behavior where applicable, preserved extra channels, and graceful runtime handling).
+9. Variable-node resolution in `workflow_utils` (exact-name matching, duplicate detection, arbitrary-type passthrough, and safe behavior when prompt metadata is missing).
 
 ## Local Validation
 

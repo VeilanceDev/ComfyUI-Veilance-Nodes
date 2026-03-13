@@ -40,8 +40,12 @@ pip install -r requirements.txt
 - `Vignette` (`Veilance/Image`)
 - `Basic Color Adjust` (`Veilance/Image`)
 - `Crop to Ratio` (`Veilance/Image`)
+- `Global Sampler + Scheduler` (`Veilance/Utils`)
+- `Global Seed` (`Veilance/Utils`)
 - `Any Switch` (`Veilance/Utils`)
 - `Any Switch (Inverse)` (`Veilance/Utils`)
+- `Set Variable` (`Veilance/Utils`)
+- `Get Variable` (`Veilance/Utils`)
 - `Image Size & Empty Latent` (`Veilance/Utils`)
 
 ## Prompt Selector Data
@@ -63,17 +67,23 @@ Current extensions:
 - `js/prompt_selector.js`
 - `js/lora_stack.js`
 - `js/nano_gpt.js`
+- `js/global_controls.js`
 - `js/text_utils.js`
 
 ## Workflow Utils Structure
 
 `workflow_utils/` is split by concern so small utility nodes can evolve without accumulating unrelated logic in one file:
 
+- `global_nodes.py`: `Global Sampler + Scheduler` and `Global Seed`
 - `switch_nodes.py`: `Any Switch` nodes
+- `variable_nodes.py`: `Set Variable` and `Get Variable`
 - `image_nodes.py`: `Image Size & Empty Latent`
 - `helpers.py`: shared input-schema and latent helpers
 - `registry.py`: exported node/display-name mappings
 - `workflow_utils.py`: compatibility re-export surface for existing imports
+
+`Global Sampler + Scheduler` and `Global Seed` also ship with a frontend helper in `js/global_controls.js` that propagates their widget values to matching sampler/scheduler/seed widgets elsewhere in the loaded graph.
+`Set Variable` and `Get Variable` resolve exact variable names at execution time and forward arbitrary upstream outputs through an internal passthrough expansion, so they can be used with models, conditioning, images, strings, latents, and similar node outputs without long wires.
 
 ## NanoGPT Alias Profiles
 

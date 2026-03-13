@@ -466,9 +466,42 @@ A utility node that calculates width and height dimensions based on a target pix
 - `height` (INT): Calculated height (aligned and profile-clamped)
 - `megapixels` (FLOAT): Actual output megapixels
 - `aspect_ratio_actual` (STRING): Reduced ratio string from the final dimensions (e.g., `16:9`)
-- `pixel_delta` (INT): `width*height - base_resolution²`
 
-**Category:** `utils`
+**Category:** `Veilance/Utils`
+
+---
+
+### Global Workflow Controls & Variables
+
+**Location:** [`workflow_utils/`](workflow_utils/)
+
+Utility nodes for graph-wide sampler/scheduler, seed coordination, and named value reuse.
+
+**Files:**
+- [`global_nodes.py`](workflow_utils/global_nodes.py) - Backend node definitions
+- [`variable_nodes.py`](workflow_utils/variable_nodes.py) - Named set/get variable nodes
+- [`registry.py`](workflow_utils/registry.py) - Workflow-utils node registration
+- [`js/global_controls.js`](js/global_controls.js) - Frontend graph sync for matching widgets
+
+**Nodes:**
+- `Global Sampler + Scheduler`
+  - Inputs: `sampler_name`, `scheduler`
+  - Outputs: `sampler_name`, `scheduler`
+  - Behavior: mirrors the selected values as outputs and propagates them to matching sampler/scheduler widgets on other nodes in the loaded workflow graph
+- `Global Seed`
+  - Inputs: `seed`
+  - Outputs: `seed`
+  - Behavior: mirrors the selected seed as output and propagates it to matching `seed`/`noise_seed` widgets on other nodes in the loaded workflow graph
+- `Set Variable`
+  - Inputs: `name`, `value`
+  - Outputs: `value`
+  - Behavior: names any connected upstream output and passes it through unchanged; supports arbitrary datatypes via flexible-input passthrough behavior
+- `Get Variable`
+  - Inputs: `name`
+  - Outputs: `value`
+  - Behavior: finds the exact-name `Set Variable` node in the executing prompt, forwards the stored source output, and raises a runtime error if the name is missing or duplicated
+
+**Category:** `Veilance/Utils`
 
 ---
 

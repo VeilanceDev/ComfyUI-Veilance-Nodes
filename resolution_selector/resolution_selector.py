@@ -64,13 +64,12 @@ class ResolutionSelector:
             },
         }
 
-    RETURN_TYPES = ("INT", "INT", "FLOAT", "STRING", "INT")
+    RETURN_TYPES = ("INT", "INT", "FLOAT", "STRING")
     RETURN_NAMES = (
         "width",
         "height",
         "megapixels",
         "aspect_ratio_actual",
-        "pixel_delta",
     )
     FUNCTION = "calculate_resolution"
     CATEGORY = "Veilance/Utils"
@@ -120,7 +119,7 @@ class ResolutionSelector:
         aspect_ratio_name: str,
         custom_ratio_width: int,
         custom_ratio_height: int,
-    ) -> Tuple[int, int, float, str, int]:
+    ) -> Tuple[int, int, float, str]:
         width_ratio, height_ratio = cls._resolve_ratio(
             aspect_ratio_name, custom_ratio_width, custom_ratio_height
         )
@@ -140,10 +139,9 @@ class ResolutionSelector:
 
         actual_pixels = width_int * height_int
         megapixels = actual_pixels / 1_000_000.0
-        pixel_delta = actual_pixels - target_pixels
         aspect_ratio_actual = cls._format_ratio(width_int, height_int)
 
-        return width_int, height_int, megapixels, aspect_ratio_actual, pixel_delta
+        return width_int, height_int, megapixels, aspect_ratio_actual
 
     def calculate_resolution(
         self,
