@@ -29,6 +29,7 @@ _ALIAS_FILE = Path(__file__).with_name("aliases.json")
 _KEYRING_SERVICE = "ComfyUI.Veilance.NanoGPT"
 
 DEFAULT_ALIAS_CONFIG: Dict[str, Any] = {
+    "api_provider": "NanoGPT",
     "custom_api_url": "",
     "model": "openai/gpt-5.2",
     "key_source": "keyring",  # keyring | env | none
@@ -50,6 +51,10 @@ def normalize_alias_config(config: Dict[str, Any]) -> Dict[str, Any]:
     source = config or {}
     cfg = dict(DEFAULT_ALIAS_CONFIG)
 
+    cfg["api_provider"] = str(
+        source.get("api_provider", DEFAULT_ALIAS_CONFIG["api_provider"])
+        or DEFAULT_ALIAS_CONFIG["api_provider"]
+    ).strip()
     cfg["custom_api_url"] = str(source.get("custom_api_url", "") or "").strip()
     cfg["model"] = str(source.get("model", "openai/gpt-5.2") or "openai/gpt-5.2").strip()
 

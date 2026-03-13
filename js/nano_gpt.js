@@ -1,25 +1,84 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
-const NODE_CLASS = "NanoGPTTextGenerator";
+const ALIAS_NODE_CLASS = "LLMTextGeneratorAlias";
 const SETTINGS_ID_OPEN = "Veilance.NanoGPT.OpenAliasManager";
 const SETTINGS_ID_INFO = "Veilance.NanoGPT.AliasInfo";
 
 const KEY_SOURCES = ["keyring", "env", "none"];
+const API_PROVIDERS = [
+    "NanoGPT",
+    "OpenAI",
+    "DeepSeek",
+    "Groq",
+    "Local LM Studio",
+    "RunPod/vLLM",
+    "Custom",
+];
 
 function getNodeClassName(node) {
     return node?.comfyClass || node?.type || "";
 }
 
-function isNanoGPTNode(node) {
-    return getNodeClassName(node) === NODE_CLASS;
+function isAliasNode(node) {
+    return getNodeClassName(node) === ALIAS_NODE_CLASS;
+}
+
+function getAliasNameWidget(node) {
+    if (!Array.isArray(node?.widgets)) return null;
+    return node.widgets.find((widget) => widget?.name === "alias_name") || null;
+}
+
+function buildAliasOptions(aliases, currentValue = "") {
+    const options = aliases
+        .map((alias) => String(alias?.name || "").trim())
+        .filter((value) => value.length > 0);
+
+    const current = String(currentValue || "").trim();
+    if (current && !options.includes(current)) {
+        options.push(current);
+    }
+
+    if (!options.length) {
+        options.push("");
+    }
+    return options;
+}
+
+function refreshAliasWidget(node, aliases) {
+    if (!isAliasNode(node)) return;
+
+    const widget = getAliasNameWidget(node);
+    if (!widget) return;
+
+    const options = buildAliasOptions(aliases, widget.value);
+    widget.options = widget.options || {};
+    widget.options.values = options;
+
+    if (!options.includes(widget.value)) {
+        widget.value = options[0];
+    }
+
+    if (Array.isArray(node.widgets_values)) {
+        const widgetIndex = node.widgets.indexOf(widget);
+        if (widgetIndex >= 0 && widgetIndex < node.widgets_values.length) {
+            node.widgets_values[widgetIndex] = widget.value;
+        }
+    }
+
+    node.setDirtyCanvas?.(true, true);
+}
+
+function refreshAliasWidgets(aliases) {
+    const nodes = app.graph?._nodes || [];
+    nodes.forEach((node) => refreshAliasWidget(node, aliases));
 }
 
 function showNotification(message, type = "info") {
     if (app.extensionManager?.toast) {
         app.extensionManager.toast.add({
             severity: type === "error" ? "error" : type === "success" ? "success" : "info",
-            summary: "NanoGPT",
+            summary: "LLM",
             detail: message,
             life: 3500,
         });
@@ -33,7 +92,7 @@ function showNotification(message, type = "info") {
         });
         return;
     }
-    console.log(`[NanoGPT] ${type}: ${message}`);
+    console.log(`[LLM] ${type}: ${message}`);
 }
 
 async function fetchAliases() {
@@ -117,14 +176,14 @@ function inputStyle(theme) {
 }
 
 function openAliasManager() {
-    const existing = document.getElementById("veilance-nanogpt-alias-manager");
+    const existing = document.getElementById("veilance-llm-alias-manager");
     if (existing) {
         existing.remove();
     }
 
     const theme = buildTheme();
     const overlay = document.createElement("div");
-    overlay.id = "veilance-nanogpt-alias-manager";
+    overlay.id = "veilance-llm-alias-manager";
     overlay.style.cssText = `
         position:fixed;
         inset:0;
@@ -150,12 +209,12 @@ function openAliasManager() {
     `;
 
     const title = document.createElement("h3");
-    title.textContent = "NanoGPT Alias Manager";
+    title.textContent = "LLM Alias Manager";
     title.style.cssText = "margin:0 0 12px 0;font-size:18px;";
 
     const subtitle = document.createElement("div");
     subtitle.textContent =
-        "Aliases store API URL/model and API key source metadata; keyring keys stay in the OS keychain.";
+        "Aliases store provider/API URL/model and API key source metadata; keyring keys stay in the OS keychain.";
     subtitle.style.cssText = `margin:0 0 14px 0;font-size:12px;color:${theme.muted};`;
 
     const status = document.createElement("div");
@@ -203,6 +262,15 @@ function openAliasManager() {
     customUrlInput.placeholder = "https://example.com/v1";
     customUrlInput.style.cssText = inputStyle(theme);
 
+    const apiProviderInput = document.createElement("select");
+    apiProviderInput.style.cssText = inputStyle(theme);
+    API_PROVIDERS.forEach((provider) => {
+        const opt = document.createElement("option");
+        opt.value = provider;
+        opt.textContent = provider;
+        apiProviderInput.appendChild(opt);
+    });
+
     const modelInput = document.createElement("input");
     modelInput.type = "text";
     modelInput.placeholder = "openai/gpt-5.2";
@@ -235,6 +303,7 @@ function openAliasManager() {
     clearStoredKeyLabel.append(clearStoredKeyInput, document.createTextNode("Clear stored keyring key"));
 
     const fieldAliasName = createInputField("Alias", aliasNameInput, theme);
+    const fieldApiProvider = createInputField("Provider", apiProviderInput, theme);
     const fieldCustomUrl = createInputField("API URL", customUrlInput, theme);
     const fieldModel = createInputField("Model", modelInput, theme);
     const fieldKeySource = createInputField("Key Source", keySourceInput, theme);
@@ -243,6 +312,7 @@ function openAliasManager() {
 
     right.append(
         fieldAliasName,
+        fieldApiProvider,
         fieldCustomUrl,
         fieldModel,
         fieldKeySource,
@@ -300,6 +370,7 @@ function openAliasManager() {
     function applyAliasToForm(alias) {
         if (!alias) return;
         aliasNameInput.value = alias.name || "";
+        apiProviderInput.value = alias.api_provider || "NanoGPT";
         customUrlInput.value = alias.custom_api_url || "";
         modelInput.value = alias.model || "openai/gpt-5.2";
         keySourceInput.value = alias.key_source || "keyring";
@@ -317,7 +388,7 @@ function openAliasManager() {
             const opt = document.createElement("option");
             const keyLabel = alias.has_api_key ? "key:yes" : "key:no";
             opt.value = alias.name;
-            opt.textContent = `${alias.name} (${alias.model || "no-model"}, ${keyLabel})`;
+            opt.textContent = `${alias.name} (${alias.api_provider || "provider?"}, ${alias.model || "no-model"}, ${keyLabel})`;
             aliasSelect.appendChild(opt);
         }
         if (!aliases.length) {
@@ -340,6 +411,7 @@ function openAliasManager() {
                 ? "Keyring backend available."
                 : "Keyring unavailable. Install Python package 'keyring' for encrypted key storage.";
             renderAliasList(payload.aliases || []);
+            refreshAliasWidgets(payload.aliases || []);
             setStatus(`Loaded ${payload.aliases?.length || 0} alias(es).`, "success");
         } catch (error) {
             setStatus(`Failed to load aliases: ${error.message}`, "error");
@@ -368,6 +440,7 @@ function openAliasManager() {
 
         const payload = {
             name,
+            api_provider: apiProviderInput.value,
             custom_api_url: customUrlInput.value.trim(),
             model: modelInput.value.trim(),
             key_source: keySourceInput.value,
@@ -396,7 +469,7 @@ function openAliasManager() {
                 applyAliasToForm(alias);
             }
             setStatus(`Saved alias '${name}'.`, "success");
-            showNotification(`Saved NanoGPT alias '${name}'.`, "success");
+            showNotification(`Saved LLM alias '${name}'.`, "success");
         } catch (error) {
             setStatus(`Save failed: ${error.message}`, "error");
             showNotification(`Alias save failed: ${error.message}`, "error");
@@ -423,10 +496,11 @@ function openAliasManager() {
                 }
             } else {
                 aliasNameInput.value = "";
+                apiProviderInput.value = "NanoGPT";
                 apiKeyInput.value = "";
             }
             setStatus(`Deleted alias '${name}'.`, "success");
-            showNotification(`Deleted NanoGPT alias '${name}'.`, "success");
+            showNotification(`Deleted LLM alias '${name}'.`, "success");
         } catch (error) {
             setStatus(`Delete failed: ${error.message}`, "error");
             showNotification(`Alias delete failed: ${error.message}`, "error");
@@ -472,16 +546,16 @@ function registerSettingsButton() {
 
     settings.addSetting({
         id: SETTINGS_ID_INFO,
-        name: "Veilance.NanoGPT Alias Profiles",
+        name: "Veilance.LLM Alias Profiles",
         type: () => {
             const row = document.createElement("tr");
             const title = document.createElement("td");
-            title.textContent = "NanoGPT Alias Profiles";
+            title.textContent = "LLM Alias Profiles";
             const valueCell = document.createElement("td");
             valueCell.style.cssText = "display:flex;align-items:center;gap:10px;";
 
             const text = document.createElement("span");
-            text.textContent = "Store API URL/model in aliases and keep API keys in the OS keyring.";
+            text.textContent = "Store provider/API URL/model in aliases and keep API keys in the OS keyring.";
             text.style.cssText = "font-size:12px;opacity:0.85;";
             const button = document.createElement("button");
             button.textContent = "Manage Aliases";
@@ -495,10 +569,10 @@ function registerSettingsButton() {
 
     settings.addSetting({
         id: SETTINGS_ID_OPEN,
-        name: "Veilance.NanoGPT Open Alias Manager",
+        name: "Veilance.LLM Open Alias Manager",
         defaultValue: false,
         type: "boolean",
-        tooltip: "Opens NanoGPT alias manager dialog.",
+        tooltip: "Opens the LLM alias manager dialog.",
         onChange: async (value) => {
             if (!value) return;
             openAliasManager();
@@ -509,14 +583,14 @@ function registerSettingsButton() {
                     app.ui.settings.setSettingValue(SETTINGS_ID_OPEN, false);
                 }
             } catch (error) {
-                console.warn("[NanoGPT] Failed to reset open-manager setting:", error);
+                console.warn("[LLM] Failed to reset open-manager setting:", error);
             }
         },
     });
 }
 
 function attachNodeButton(node) {
-    if (!isNanoGPTNode(node)) return;
+    if (!isAliasNode(node)) return;
     if (node.widgets?.some((widget) => widget?.name === "🔐 Manage Aliases")) return;
 
     node.addWidget(
@@ -528,20 +602,26 @@ function attachNodeButton(node) {
         },
         {}
     );
+
+    fetchAliases()
+        .then((payload) => refreshAliasWidget(node, payload.aliases || []))
+        .catch((error) => {
+            console.warn("[LLM] Failed to load alias options for node:", error);
+        });
 }
 
 app.registerExtension({
-    name: "Veilance.NanoGPT",
+    name: "Veilance.LLMTextGenerator",
 
     async setup() {
         registerSettingsButton();
     },
 
     getNodeMenuItems(node) {
-        if (!isNanoGPTNode(node)) return [];
+        if (!isAliasNode(node)) return [];
         return [
             {
-                content: "🔐 Manage NanoGPT Aliases",
+                content: "🔐 Manage LLM Aliases",
                 callback: () => openAliasManager(),
             },
         ];

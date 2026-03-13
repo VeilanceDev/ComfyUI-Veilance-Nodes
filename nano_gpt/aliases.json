@@ -1,0 +1,11 @@
+{
+  "aliases": {
+    "GLM 5": {
+      "api_provider": "NanoGPT",
+      "custom_api_url": "",
+      "model": "zai-org/glm-5",
+      "key_source": "keyring",
+      "api_key_env": ""
+    }
+  }
+}

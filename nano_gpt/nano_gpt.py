@@ -1,5 +1,5 @@
 """
-NanoGPT text/vision generation node for ComfyUI.
+LLM text/vision generation nodes for ComfyUI.
 """
 
 from __future__ import annotations
@@ -95,6 +95,35 @@ def _api_key_fingerprint(api_key: str) -> str:
     return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
 
 
+def _resolve_base_url(
+    api_provider: str,
+    custom_api_url: str,
+    api_providers: Dict[str, str],
+) -> str:
+    base_url = str(custom_api_url or "").strip().rstrip("/")
+    if base_url:
+        return base_url
+    return str(api_providers.get(str(api_provider or ""), "") or "").strip().rstrip("/")
+
+
+def _alias_name_input_spec() -> Tuple[list[str], Dict[str, Any]]:
+    aliases = [entry.get("name", "") for entry in alias_store.list_aliases()]
+    alias_names = [str(name).strip() for name in aliases if str(name).strip()]
+    if not alias_names:
+        return ([""], {"default": ""})
+    return (alias_names, {"default": alias_names[0]})
+
+
+def _seed_input_with_control(seed_input_spec: Any) -> Any:
+    if isinstance(seed_input_spec, tuple) and len(seed_input_spec) > 1:
+        metadata = seed_input_spec[1]
+        if isinstance(metadata, dict):
+            updated_metadata = dict(metadata)
+            updated_metadata["control_after_generate"] = True
+            return (seed_input_spec[0], updated_metadata)
+    return seed_input_spec
+
+
 def _build_response_cache_key(
     *,
     data: Dict[str, Any],
@@ -121,7 +150,7 @@ def _build_response_cache_key(
     return hashlib.sha256(cache_key_data.encode("utf-8")).hexdigest()
 
 
-class NanoGPTTextGenerator:
+class _BaseLLMTextGenerator:
     API_PROVIDERS = {
         "NanoGPT": "https://nano-gpt.com/api/v1",
         "OpenAI": "https://api.openai.com/v1",
@@ -132,63 +161,44 @@ class NanoGPTTextGenerator:
         "Custom": "",
     }
 
-    @classmethod
-    def INPUT_TYPES(cls) -> Dict[str, Any]:
-        return {
-            "required": {
-                "prompt": ("STRING", {"multiline": True, "default": ""}),
-                "system_prompt": (
-                    "STRING",
-                    {"multiline": True, "default": "You are a helpful assistant."},
-                ),
-                "config_mode": (["manual", "alias"], {"default": "manual"}),
-                "alias_name": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "multiline": False,
-                        "placeholder": "e.g. openai-main",
-                    },
-                ),
-                "api_provider": (list(cls.API_PROVIDERS.keys()), {"default": "NanoGPT"}),
-                "custom_api_url": ("STRING", {"default": ""}),
-                "api_key": ("STRING", {"default": "", "multiline": False}),
-                "model": ("STRING", {"default": "openai/gpt-5.2"}),
-                "temperature": (
-                    "FLOAT",
-                    {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1},
-                ),
-                "max_tokens": (
-                    "INT",
-                    {"default": 1024, "min": 1, "max": 8192, "step": 1},
-                ),
-                "top_p": (
-                    "FLOAT",
-                    {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
-                ),
-                "frequency_penalty": (
-                    "FLOAT",
-                    {"default": 0.0, "min": -2.0, "max": 2.0, "step": 0.1},
-                ),
-                "presence_penalty": (
-                    "FLOAT",
-                    {"default": 0.0, "min": -2.0, "max": 2.0, "step": 0.1},
-                ),
-                "response_format": (["text", "json_object"], {"default": "text"}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
-                "control_after_generate": (
-                    ["fixed", "increment", "decrement", "randomize"],
-                ),
-            },
-            "optional": {
-                "images": ("IMAGE",),
-            },
-        }
-
     RETURN_TYPES = ("STRING", "STRING", "STRING")
     RETURN_NAMES = ("text", "messages_json", "prompt_echo")
     FUNCTION = "generate_text"
     CATEGORY = "Veilance/Utils/Prompts"
+
+    @classmethod
+    def _base_required_inputs(cls) -> Dict[str, Any]:
+        return {
+            "prompt": ("STRING", {"multiline": True, "default": ""}),
+            "system_prompt": (
+                "STRING",
+                {"multiline": True, "default": "You are a helpful assistant."},
+            ),
+            "temperature": (
+                "FLOAT",
+                {"default": 0.7, "min": 0.0, "max": 2.0, "step": 0.1},
+            ),
+            "max_tokens": (
+                "INT",
+                {"default": 1024, "min": 1, "max": 8192, "step": 1},
+            ),
+            "top_p": (
+                "FLOAT",
+                {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
+            ),
+            "frequency_penalty": (
+                "FLOAT",
+                {"default": 0.0, "min": -2.0, "max": 2.0, "step": 0.1},
+            ),
+            "presence_penalty": (
+                "FLOAT",
+                {"default": 0.0, "min": -2.0, "max": 2.0, "step": 0.1},
+            ),
+            "response_format": (["text", "json_object"], {"default": "text"}),
+            "seed": _seed_input_with_control(
+                ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF})
+            ),
+        }
 
     @staticmethod
     def _image_dependency_error() -> str:
@@ -199,7 +209,7 @@ class NanoGPTTextGenerator:
             missing.append("numpy")
 
         return (
-            "NanoGPT image input requires the following runtime dependencies: "
+            "LLM Text Generator image input requires the following runtime dependencies: "
             + ", ".join(missing)
         )
 
@@ -218,7 +228,7 @@ class NanoGPTTextGenerator:
             img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
             return f"data:image/jpeg;base64,{img_str}", ""
         except Exception as e:
-            print(f"[NanoGPT] Error converting image: {e}")
+            print(f"[LLMTextGenerator] Error converting image: {e}")
             return None, f"Failed to encode image input: {e}"
 
     def _resolve_alias_settings(self, alias_name: str) -> Tuple[Optional[Dict[str, Any]], str]:
@@ -252,65 +262,11 @@ class NanoGPTTextGenerator:
         settings["api_key"] = api_key
         return settings, ""
 
-    def _resolve_effective_settings(
+    def _generate_with_settings(
         self,
-        config_mode: str,
-        alias_name: str,
-        api_provider: str,
-        custom_api_url: str,
-        api_key: str,
-        model: str,
-        temperature: float,
-        max_tokens: int,
-        top_p: float,
-        frequency_penalty: float,
-        presence_penalty: float,
-        response_format: str,
-    ) -> Tuple[Optional[Dict[str, Any]], str]:
-        manual = {
-            "api_provider": api_provider,
-            "custom_api_url": custom_api_url,
-            "api_key": api_key,
-            "model": model,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "top_p": top_p,
-            "frequency_penalty": frequency_penalty,
-            "presence_penalty": presence_penalty,
-            "response_format": response_format,
-        }
-
-        if config_mode != "alias":
-            return manual, ""
-
-        alias_settings, alias_error = self._resolve_alias_settings(alias_name)
-        if alias_error:
-            return None, alias_error
-        if alias_settings is None:
-            return None, "Alias resolution failed."
-
-        # Alias mode only overrides connection/auth details; generation controls stay on-node.
-        return {
-            "api_provider": manual["api_provider"],
-            "custom_api_url": alias_settings.get(
-                "custom_api_url", manual["custom_api_url"]
-            ),
-            "api_key": alias_settings.get("api_key", ""),
-            "model": alias_settings.get("model", manual["model"]),
-            "temperature": manual["temperature"],
-            "max_tokens": manual["max_tokens"],
-            "top_p": manual["top_p"],
-            "frequency_penalty": manual["frequency_penalty"],
-            "presence_penalty": manual["presence_penalty"],
-            "response_format": manual["response_format"],
-        }, ""
-
-    def generate_text(
-        self,
+        *,
         prompt: str,
         system_prompt: str,
-        config_mode: str,
-        alias_name: str,
         api_provider: str,
         custom_api_url: str,
         api_key: str,
@@ -322,43 +278,11 @@ class NanoGPTTextGenerator:
         presence_penalty: float,
         response_format: str,
         seed: int,
-        control_after_generate: str,
+        mode_name: str,
+        alias_name: str = "",
         images: Optional[Any] = None,
     ) -> Tuple[str, str, str]:
-        settings, settings_error = self._resolve_effective_settings(
-            config_mode=config_mode,
-            alias_name=alias_name,
-            api_provider=api_provider,
-            custom_api_url=custom_api_url,
-            api_key=api_key,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
-            response_format=response_format,
-        )
-        if settings_error:
-            return (f"Error: {settings_error}", "[]", prompt)
-        if settings is None:
-            return ("Error: Failed to resolve settings.", "[]", prompt)
-
-        api_provider = str(settings["api_provider"])
-        custom_api_url = str(settings["custom_api_url"])
-        api_key = str(settings["api_key"])
-        model = str(settings["model"])
-        temperature = float(settings["temperature"])
-        max_tokens = int(settings["max_tokens"])
-        top_p = float(settings["top_p"])
-        frequency_penalty = float(settings["frequency_penalty"])
-        presence_penalty = float(settings["presence_penalty"])
-        response_format = str(settings["response_format"])
-
-        base_url = (custom_api_url or "").strip().rstrip("/")
-        if not base_url:
-            base_url = self.API_PROVIDERS.get(api_provider, "").rstrip("/")
-
+        base_url = _resolve_base_url(api_provider, custom_api_url, self.API_PROVIDERS)
         if not base_url:
             return ("Error: A valid API URL must be provided.", "[]", prompt)
 
@@ -416,13 +340,13 @@ class NanoGPTTextGenerator:
             data=data,
             base_url=base_url,
             api_provider=api_provider,
-            config_mode=str(config_mode),
+            config_mode=mode_name,
             alias_name=alias_name,
             api_key=api_key,
         )
         cached_text = _response_cache_get(cache_hash)
         if cached_text is not None:
-            print(f"[NanoGPT] Returning cached response for seed {seed}")
+            print(f"[LLMTextGenerator] Returning cached response for seed {seed}")
             return (cached_text, messages_json_str, prompt)
 
         url = f"{base_url}/chat/completions"
@@ -456,7 +380,7 @@ class NanoGPTTextGenerator:
                 error_body = e.read().decode("utf-8")
                 if status in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
                     print(
-                        f"[NanoGPT] Attempt {attempt + 1}/{max_retries} failed "
+                        f"[LLMTextGenerator] Attempt {attempt + 1}/{max_retries} failed "
                         f"with {status}. Retrying in {retry_delay}s..."
                     )
                     time.sleep(retry_delay)
@@ -466,7 +390,7 @@ class NanoGPTTextGenerator:
             except urllib.error.URLError as e:
                 if attempt < max_retries - 1:
                     print(
-                        f"[NanoGPT] URLError on attempt {attempt + 1}/{max_retries}: "
+                        f"[LLMTextGenerator] URLError on attempt {attempt + 1}/{max_retries}: "
                         f"{e.reason}. Retrying in {retry_delay}s..."
                     )
                     time.sleep(retry_delay)
@@ -483,9 +407,136 @@ class NanoGPTTextGenerator:
         return ("Error: Maximum retries reached.", messages_json_str, prompt)
 
 
+class LLMTextGeneratorManual(_BaseLLMTextGenerator):
+    @classmethod
+    def INPUT_TYPES(cls) -> Dict[str, Any]:
+        required = cls._base_required_inputs()
+        manual_inputs = {
+            "api_provider": (list(cls.API_PROVIDERS.keys()), {"default": "NanoGPT"}),
+            "custom_api_url": ("STRING", {"default": ""}),
+            "api_key": ("STRING", {"default": "", "multiline": False}),
+            "model": ("STRING", {"default": "openai/gpt-5.2"}),
+        }
+        return {
+            "required": {
+                "prompt": required["prompt"],
+                "system_prompt": required["system_prompt"],
+                **manual_inputs,
+                "temperature": required["temperature"],
+                "max_tokens": required["max_tokens"],
+                "top_p": required["top_p"],
+                "frequency_penalty": required["frequency_penalty"],
+                "presence_penalty": required["presence_penalty"],
+                "response_format": required["response_format"],
+                "seed": required["seed"],
+            },
+            "optional": {
+                "images": ("IMAGE",),
+            },
+        }
+
+    def generate_text(
+        self,
+        prompt: str,
+        system_prompt: str,
+        api_provider: str,
+        custom_api_url: str,
+        api_key: str,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        top_p: float,
+        frequency_penalty: float,
+        presence_penalty: float,
+        response_format: str,
+        seed: int,
+        images: Optional[Any] = None,
+    ) -> Tuple[str, str, str]:
+        return self._generate_with_settings(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            api_provider=str(api_provider),
+            custom_api_url=str(custom_api_url),
+            api_key=str(api_key),
+            model=str(model),
+            temperature=float(temperature),
+            max_tokens=int(max_tokens),
+            top_p=float(top_p),
+            frequency_penalty=float(frequency_penalty),
+            presence_penalty=float(presence_penalty),
+            response_format=str(response_format),
+            seed=int(seed),
+            mode_name="manual",
+            images=images,
+        )
+
+
+class LLMTextGeneratorAlias(_BaseLLMTextGenerator):
+    @classmethod
+    def INPUT_TYPES(cls) -> Dict[str, Any]:
+        required = cls._base_required_inputs()
+        return {
+            "required": {
+                "prompt": required["prompt"],
+                "system_prompt": required["system_prompt"],
+                "alias_name": _alias_name_input_spec(),
+                "temperature": required["temperature"],
+                "max_tokens": required["max_tokens"],
+                "top_p": required["top_p"],
+                "frequency_penalty": required["frequency_penalty"],
+                "presence_penalty": required["presence_penalty"],
+                "response_format": required["response_format"],
+                "seed": required["seed"],
+            },
+            "optional": {
+                "images": ("IMAGE",),
+            },
+        }
+
+    def generate_text(
+        self,
+        prompt: str,
+        system_prompt: str,
+        alias_name: str,
+        temperature: float,
+        max_tokens: int,
+        top_p: float,
+        frequency_penalty: float,
+        presence_penalty: float,
+        response_format: str,
+        seed: int,
+        images: Optional[Any] = None,
+    ) -> Tuple[str, str, str]:
+        settings, settings_error = self._resolve_alias_settings(alias_name)
+        if settings_error:
+            return (f"Error: {settings_error}", "[]", prompt)
+        if settings is None:
+            return ("Error: Failed to resolve alias settings.", "[]", prompt)
+
+        return self._generate_with_settings(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            api_provider=str(settings.get("api_provider", "NanoGPT")),
+            custom_api_url=str(settings.get("custom_api_url", "")),
+            api_key=str(settings.get("api_key", "")),
+            model=str(settings.get("model", "openai/gpt-5.2")),
+            temperature=float(temperature),
+            max_tokens=int(max_tokens),
+            top_p=float(top_p),
+            frequency_penalty=float(frequency_penalty),
+            presence_penalty=float(presence_penalty),
+            response_format=str(response_format),
+            seed=int(seed),
+            mode_name="alias",
+            alias_name=str(alias_name or "").strip(),
+            images=images,
+        )
+
+
 def _alias_payload_from_request(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], str, str]:
     config = alias_store.normalize_alias_config(
         {
+            "api_provider": payload.get("api_provider", "NanoGPT"),
             "custom_api_url": payload.get("custom_api_url", ""),
             "model": payload.get("model", "openai/gpt-5.2"),
             "key_source": payload.get("key_source", "keyring"),
@@ -498,11 +549,13 @@ def _alias_payload_from_request(payload: Dict[str, Any]) -> Tuple[Dict[str, Any]
 
 
 NODE_CLASS_MAPPINGS = {
-    "NanoGPTTextGenerator": NanoGPTTextGenerator,
+    "LLMTextGeneratorManual": LLMTextGeneratorManual,
+    "LLMTextGeneratorAlias": LLMTextGeneratorAlias,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "NanoGPTTextGenerator": "NanoGPT Text Generator",
+    "LLMTextGeneratorManual": "LLM Text Generator (Manual)",
+    "LLMTextGeneratorAlias": "LLM Text Generator (Alias)",
 }
 
 
@@ -574,7 +627,13 @@ try:
                         )
                     if (
                         not has_key
-                        and not _is_local_api_url(config.get("custom_api_url", ""))
+                        and not _is_local_api_url(
+                            _resolve_base_url(
+                                str(config.get("api_provider", "NanoGPT")),
+                                str(config.get("custom_api_url", "")),
+                                _BaseLLMTextGenerator.API_PROVIDERS,
+                            )
+                        )
                     ):
                         return web.json_response(
                             {

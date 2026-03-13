@@ -7,6 +7,7 @@ from .workflow_utils import (
     ImageSizeAndLatent,
     NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS,
+    SourceFilename,
     SetVariable,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "ImageSizeAndLatent",
     "NODE_CLASS_MAPPINGS",
     "NODE_DISPLAY_NAME_MAPPINGS",
+    "SourceFilename",
     "SetVariable",
 ]

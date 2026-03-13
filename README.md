@@ -28,7 +28,8 @@ pip install -r requirements.txt
 - `Sampler Presets`
 - `Seed Strategy`
 - `LoRA Stack`
-- `NanoGPT Text Generator` (`Veilance/Utils/Prompts`)
+- `LLM Text Generator (Manual)` (`Veilance/Utils/Prompts`)
+- `LLM Text Generator (Alias)` (`Veilance/Utils/Prompts`)
 - `Save Image (CivitAI Metadata)` (`Veilance/Image`)
 - `Film Grain` (`Veilance/Image`)
 - `Jpegify` (`Veilance/Image`)
@@ -85,30 +86,30 @@ Current extensions:
 `Global Sampler + Scheduler` and `Global Seed` also ship with a frontend helper in `js/global_controls.js` that propagates their widget values to matching sampler/scheduler/seed widgets elsewhere in the loaded graph.
 `Set Variable` and `Get Variable` resolve exact variable names at execution time and forward arbitrary upstream outputs through an internal passthrough expansion, so they can be used with models, conditioning, images, strings, latents, and similar node outputs without long wires.
 
-## NanoGPT Alias Profiles
+## LLM Alias Profiles
 
-`NanoGPT Text Generator` supports two config modes:
+The LLM text generator is split into two nodes:
 
-- `manual`: use node widget values directly (legacy behavior)
-- `alias`: load API URL, model, and key source/API key from a saved alias
+- `LLM Text Generator (Manual)`: uses node widget values directly for provider/API/auth/model settings
+- `LLM Text Generator (Alias)`: loads provider/API URL, model, and key source/API key from a saved alias, with `alias_name` offered as a dropdown of saved aliases
 
 Alias data model:
 
-- Non-secret alias settings (`custom_api_url`, `model`, key-source metadata) are stored in `nano_gpt/aliases.json`
+- Non-secret alias settings (`api_provider`, `custom_api_url`, `model`, key-source metadata) are stored in `nano_gpt/aliases.json`
 - API keys are stored in OS keychain via Python `keyring` (not in workflow JSON)
 - `key_source` can be `keyring`, `env` (from env var name), or `none`
-- Generation controls (temperature, max tokens, top-p, penalties, response format) remain on the node widgets
+- Generation controls (temperature, max tokens, top-p, penalties, response format) remain on the node widgets for both nodes
 
 Open the alias manager from:
 
-- ComfyUI Settings (`Veilance.NanoGPT`)
-- NanoGPT node button/context menu (`Manage Aliases`)
+- ComfyUI Settings (`Veilance.LLM`)
+- `LLM Text Generator (Alias)` node button/context menu (`Manage Aliases`)
 
 ## Notes
 
 - `watchdog` is optional but enables auto-refresh for prompt file changes.
 - `pyyaml` is optional but required for YAML prompt files.
-- `keyring` is optional but required for encrypted API key storage in NanoGPT aliases.
+- `keyring` is optional but required for encrypted API key storage in LLM aliases.
 - `Film Grain` uses deterministic seeded grain with tone-aware masking, clumped spatial structure, and stock-specific chroma variation rather than plain per-pixel noise.
 - `Film Grain` also exposes optional `clumpiness_scale` and `resolution_response_scale` controls for per-node tuning while keeping stock defaults at `1.0`.
 - `Jpegify` simulates JPEG re-encoding artifacts in memory with adjustable intensity, pass count, and chroma subsampling.

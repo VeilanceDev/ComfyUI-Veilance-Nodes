@@ -226,24 +226,24 @@ A utility node for cleaning comma-separated prompt tags with configurable normal
 
 ---
 
-### NanoGPT Text Generator
+### LLM Text Generator
 
 **Location:** [`nano_gpt/`](nano_gpt/)
 
-A text/vision prompt generation node that calls OpenAI-compatible `/chat/completions` endpoints with provider presets, retry handling, and optional image input.
+Two text/vision prompt generation nodes that call OpenAI-compatible `/chat/completions` endpoints with provider presets, retry handling, and optional image input.
 
 **Files:**
 - [`nano_gpt.py`](nano_gpt/nano_gpt.py) - Node implementation and alias API route registration
 - [`alias_store.py`](nano_gpt/alias_store.py) - Alias persistence + keyring secret handling
 - [`aliases.json`](nano_gpt/aliases.json) - Alias metadata store (non-secret; created on first save)
 
-**Inputs:**
-- `prompt` (STRING): User message text
-- `system_prompt` (STRING): System instruction text
-- `config_mode` (COMBO): `manual` or `alias`
-- `alias_name` (STRING): Alias profile name used when `config_mode = alias`
-- `api_provider` / `custom_api_url` / `api_key` / `model` / sampling controls: Node settings (manual mode uses all; alias mode only overrides URL/model/auth)
-- `images` (IMAGE, optional): First batch image is encoded as JPEG data URL and attached to the user message
+**Nodes:**
+- `LLM Text Generator (Manual)`
+  - Inputs: `prompt`, `system_prompt`, `api_provider`, `custom_api_url`, `api_key`, `model`, generation controls, optional `images`
+  - Behavior: uses only on-node provider/API/auth/model settings
+- `LLM Text Generator (Alias)`
+  - Inputs: `prompt`, `system_prompt`, `alias_name` dropdown, generation controls, optional `images`
+  - Behavior: resolves provider/API/auth/model from alias metadata and keeps generation controls on-node
 
 **Outputs:**
 - `text` (STRING): Model response text
@@ -251,14 +251,15 @@ A text/vision prompt generation node that calls OpenAI-compatible `/chat/complet
 - `prompt_echo` (STRING): Input prompt passthrough
 
 **Alias Behavior:**
-- Alias mode resolves API URL, model, and auth from alias config
-- Alias mode keeps generation controls (temperature/max tokens/top-p/penalties/response format) from node widgets
+- Alias profiles store `api_provider`, `custom_api_url`, `model`, and auth source metadata
+- Alias node resolves provider/API URL, model, and auth from alias config
+- Alias node keeps generation controls (temperature/max tokens/top-p/penalties/response format) from node widgets
 - Alias `key_source` supports:
   - `keyring` (OS keychain via Python `keyring`)
   - `env` (lookup from configured env var name)
   - `none` (no API key)
 - API keys are never persisted in workflow JSON
-- Response caching uses an in-memory LRU+TTL cache and includes auth scope in the cache key so responses are not reused across different aliases or API keys
+- Response caching uses an in-memory LRU+TTL cache and includes node mode plus auth scope in the cache key so responses are not reused across different aliases or API keys
 - IMAGE input now returns a clear node error when Pillow/numpy are unavailable instead of silently dropping the image payload
 
 **Alias API Endpoints:**
@@ -475,11 +476,12 @@ A utility node that calculates width and height dimensions based on a target pix
 
 **Location:** [`workflow_utils/`](workflow_utils/)
 
-Utility nodes for graph-wide sampler/scheduler, seed coordination, and named value reuse.
+Utility nodes for graph-wide sampler/scheduler, seed coordination, named value reuse, and graph-aware filename extraction for MODEL/CLIP/VAE sources.
 
 **Files:**
 - [`global_nodes.py`](workflow_utils/global_nodes.py) - Backend node definitions
 - [`variable_nodes.py`](workflow_utils/variable_nodes.py) - Named set/get variable nodes
+- [`source_filename_nodes.py`](workflow_utils/source_filename_nodes.py) - Graph-aware source filename extraction
 - [`registry.py`](workflow_utils/registry.py) - Workflow-utils node registration
 - [`js/global_controls.js`](js/global_controls.js) - Frontend graph sync for matching widgets
 
@@ -500,6 +502,10 @@ Utility nodes for graph-wide sampler/scheduler, seed coordination, and named val
   - Inputs: `name`
   - Outputs: `value`
   - Behavior: finds the exact-name `Set Variable` node in the executing prompt, forwards the stored source output, and raises a runtime error if the name is missing or duplicated
+- `Source Filename`
+  - Inputs: `source`
+  - Outputs: `filename`
+  - Behavior: accepts a MODEL/CLIP/VAE workflow link, traces supported loader and Veilance wrapper nodes through prompt metadata, returns the selected base filename with extension, and falls back to `<unknown filename>` when unresolved
 
 **Category:** `Veilance/Utils`
 
@@ -603,7 +609,7 @@ JavaScript extensions are loaded via `WEB_DIRECTORY = "./js"` in the root `__ini
 Current extensions:
 - `prompt_selector.js` - Searchable dropdowns, refresh button, context menu
 - `lora_stack.js` - Dynamic visibility for LoRA stack slot widgets
-- `nano_gpt.js` - NanoGPT alias manager dialog + settings integration
+- `nano_gpt.js` - LLM alias manager dialog + settings integration for the alias-based text generator node
 
 ---
 
@@ -612,7 +618,7 @@ Current extensions:
 See [`requirements.txt`](requirements.txt):
 - `pyyaml>=6.0` - For YAML file parsing (optional, CSV/JSON work without it)
 - `watchdog>=3.0` - For auto-refresh on file changes (optional)
-- `keyring>=25.0` - For encrypted OS keychain storage of NanoGPT API keys (optional)
+- `keyring>=25.0` - For encrypted OS keychain storage of LLM alias API keys (optional)
 
 ---
 

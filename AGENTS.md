@@ -32,6 +32,7 @@ This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__
   - `text_utils/`
   - `image_adjustments/`
   - `workflow_utils/`
+  - `workflow_utils/source_filename_nodes.py`: graph-aware MODEL/CLIP/VAE filename extraction from prompt metadata.
 - Frontend extensions: `js/`
 - Prompt data: `data/prompts/`
 
@@ -69,9 +70,11 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - Prompt selector class names now append a stable hash suffix only when multiple categories normalize to the same legacy class key, avoiding registry collisions while preserving legacy names when unique.
 - Dynamic prompt selector nodes are grouped under the ComfyUI category path `Veilance/Prompts/Dynamic Lists`.
 - `prompt_selector` also registers `POST /prompt_selector/refresh` via `PromptServer`.
-- `nano_gpt` supports alias-based config profiles (`manual` vs `alias` mode). Alias metadata stores `custom_api_url`, `model`, and key-source metadata in `nano_gpt/aliases.json`, while API keys are resolved from OS keyring (`keyring`) or env vars.
+- `nano_gpt` exposes two nodes: `LLM Text Generator (Manual)` for direct provider/API-key/model entry and `LLM Text Generator (Alias)` for alias-based connection/auth/model settings.
+- `LLM Text Generator (Alias)` exposes `alias_name` as a dropdown populated from the saved alias list; `js/nano_gpt.js` refreshes that widget after alias-manager changes.
+- Alias metadata stores `api_provider`, `custom_api_url`, `model`, and key-source metadata in `nano_gpt/aliases.json`, while API keys are resolved from OS keyring (`keyring`) or env vars.
 - `nano_gpt` image input requires Pillow and numpy at runtime; missing deps now return a clear node error instead of failing later during image conversion.
-- `nano_gpt` response caching is an in-memory LRU+TTL cache keyed by request payload plus auth scope (`config_mode`, alias name when used, API-key fingerprint), so cached responses do not leak across different credentials.
+- `nano_gpt` response caching is an in-memory LRU+TTL cache keyed by request payload plus auth scope (`manual` vs `alias`, alias name when used, API-key fingerprint), so cached responses do not leak across different credentials.
 - `nano_gpt` registers alias management routes:
   - `GET /veilance/nano_gpt/aliases`
   - `POST /veilance/nano_gpt/aliases/upsert`
@@ -85,6 +88,7 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - `workflow_utils` is organized into focused modules (`switch_nodes.py`, `image_nodes.py`, `helpers.py`, `registry.py`), while `workflow_utils/workflow_utils.py` remains the compatibility export surface for existing imports.
 - `workflow_utils` also includes `global_nodes.py` for `Global Sampler + Scheduler` and `Global Seed`; `js/global_controls.js` propagates those widget values to matching sampler/scheduler/seed widgets across the loaded graph.
 - `workflow_utils` also includes `variable_nodes.py` for `Set Variable` and `Get Variable`; `Get Variable` resolves a matching `Set Variable` by exact `name` from prompt metadata at execution time, expands through `VeilanceAnySwitch` to preserve arbitrary upstream datatypes, and raises a clear runtime error when names are missing or duplicated.
+- `workflow_utils` also includes `source_filename_nodes.py` for `Source Filename`; it traces supported loader and wrapper nodes through prompt metadata to recover the selected base filename for MODEL/CLIP/VAE sources and returns `<unknown filename>` when unsupported.
 - Root package registration loads node packages through a guarded import helper so one broken package does not prevent unrelated nodes from appearing in ComfyUI.
 - Root startup logs include a per-run package load summary (`loaded`, `skipped`, `nodes`) and list any skipped package names.
 - `resolution_selector` now outputs `width`, `height`, `megapixels`, and `aspect_ratio_actual`; the old `pixel_delta` output has been removed.
@@ -92,7 +96,7 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 ## External/API Node Notes
 
 - `nano_gpt/nano_gpt.py` calls OpenAI-compatible `/chat/completions` endpoints.
-- It supports multiple providers, optional image input, retries, in-memory caching, and alias profiles that only override API URL/model/auth while generation controls remain node inputs.
+- It supports multiple providers, optional image input, retries, in-memory caching, and split manual/alias node surfaces so each node only exposes the settings it actually uses.
 - Review API error handling carefully: HTTP errors are surfaced as string outputs, not raised exceptions.
 - `nano_gpt/alias_store.py` handles alias persistence and keyring interactions. Avoid storing API secrets in workflow widgets or plaintext JSON.
 
@@ -109,6 +113,7 @@ When reviewing code, prioritize:
 7. Metadata compatibility and format-specific save behavior in `save_image_civitai` (PNG text chunks vs JPG/WEBP EXIF).
 8. Image-processing safety in `image_sharpen`, `film_grain`, and `image_artifacts` (batch shape preservation, clamping, deterministic behavior where applicable, preserved extra channels, and graceful runtime handling).
 9. Variable-node resolution in `workflow_utils` (exact-name matching, duplicate detection, arbitrary-type passthrough, and safe behavior when prompt metadata is missing).
+10. Source-filename tracing in `workflow_utils` (loader key mapping, pipe component routing, baked-VAE fallback, and graceful `<unknown filename>` behavior on unsupported graphs).
 
 ## Local Validation
 
