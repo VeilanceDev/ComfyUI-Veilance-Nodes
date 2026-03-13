@@ -44,6 +44,7 @@ _NODE_PACKAGE_ORDER = [
     "seed_strategy",
     "lora_stack",
     "nano_gpt",
+    "image_loader",
     "save_image_civitai",
     "image_sharpen",
     "film_grain",

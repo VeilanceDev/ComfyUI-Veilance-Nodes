@@ -25,6 +25,7 @@ This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__
   - `seed_strategy/`
   - `lora_stack/`
   - `nano_gpt/`
+  - `image_loader/`
   - `save_image_civitai/`
   - `image_sharpen/`
   - `film_grain/`
@@ -75,6 +76,7 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - Alias metadata stores `api_provider`, `custom_api_url`, `model`, and key-source metadata in `nano_gpt/aliases.json`, while API keys are resolved from OS keyring (`keyring`) or env vars.
 - `nano_gpt` image input requires Pillow and numpy at runtime; missing deps now return a clear node error instead of failing later during image conversion.
 - `nano_gpt` response caching is an in-memory LRU+TTL cache keyed by request payload plus auth scope (`manual` vs `alias`, alias name when used, API-key fingerprint), so cached responses do not leak across different credentials.
+- `image_loader` provides `Load Image (Upload or URL)`, which mirrors ComfyUI-style local upload selection via `image_upload` and can alternatively fetch an HTTP/HTTPS image URL, returning standard `IMAGE` and `MASK` outputs.
 - `nano_gpt` registers alias management routes:
   - `GET /veilance/nano_gpt/aliases`
   - `POST /veilance/nano_gpt/aliases/upsert`
