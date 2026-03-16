@@ -89,6 +89,8 @@ A combined model loader node with extra workflow widgets for prompt and latent s
 - `height` (INT): Height widget (default: 1024)
 - `positive_prompt` (STRING): Positive prompt text
 - `negative_prompt` (STRING): Negative prompt text
+- `clip_skip` (INT): Optional CLIP last-layer override applied through ComfyUI `CLIP Set Last Layer` before prompt encoding (default: `-1`)
+- `a1111_prompt_style` (BOOLEAN): When enabled, uses `ComfyUI_smZNodes` `CLIP Text Encode++` with parser `A1111`; raises a runtime error if that custom node pack is unavailable
 - `batch_size` (INT): Batch size widget (default: 1)
 - `pipe` (PIPE, optional): Incoming pipe passthrough; first 6 fields are replaced with this node's outputs
 
@@ -145,6 +147,8 @@ An advanced checkpoint-based loader that also prepares prompt conditioning and a
 - `height` (INT): Height widget (default: 1024)
 - `positive_prompt` (STRING): Positive prompt text
 - `negative_prompt` (STRING): Negative prompt text
+- `clip_skip` (INT): Optional CLIP last-layer override applied through ComfyUI `CLIP Set Last Layer` before prompt encoding (default: `-1`)
+- `a1111_prompt_style` (BOOLEAN): When enabled, uses `ComfyUI_smZNodes` `CLIP Text Encode++` with parser `A1111`; raises a runtime error if that custom node pack is unavailable
 - `batch_size` (INT): Batch size widget (default: 1)
 - `pipe` (PIPE, optional): Incoming pipe passthrough; first 6 fields are replaced with this node's outputs
 

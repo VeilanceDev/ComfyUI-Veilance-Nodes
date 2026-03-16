@@ -9,11 +9,13 @@ from typing import Any, Dict, Tuple
 
 from ..comfy_reflection import (
     build_required_kwargs,
+    ensure_legacy_node_alias,
     extract_default_value,
     find_first_input,
     get_required_inputs,
     resolve_node_class,
     run_node,
+    try_resolve_node_class,
 )
 
 
@@ -33,6 +35,18 @@ class _BaseModelLoaderTrio:
     _VAE_MODEL_KEYS = ("vae_name", "model_name")
     _TEXT_CONDITIONING_CLIP_KEYS = ("clip",)
     _TEXT_CONDITIONING_TEXT_KEYS = ("text", "prompt")
+    _A1111_TEXT_G_KEYS = ("text_g",)
+    _A1111_TEXT_L_KEYS = ("text_l",)
+    _A1111_PARSER_KEYS = ("parser",)
+    _A1111_WITH_SDXL_KEYS = ("with_SDXL", "with_sdxl")
+    _A1111_WIDTH_KEYS = ("width",)
+    _A1111_HEIGHT_KEYS = ("height",)
+    _A1111_TARGET_WIDTH_KEYS = ("target_width",)
+    _A1111_TARGET_HEIGHT_KEYS = ("target_height",)
+    _A1111_CROP_W_KEYS = ("crop_w",)
+    _A1111_CROP_H_KEYS = ("crop_h",)
+    _CLIP_SET_LAST_LAYER_CLIP_KEYS = ("clip",)
+    _CLIP_SET_LAST_LAYER_LAYER_KEYS = ("stop_at_clip_layer", "last_layer", "clip_skip")
     _LATENT_WIDTH_KEYS = ("width",)
     _LATENT_HEIGHT_KEYS = ("height",)
     _LATENT_BATCH_KEYS = ("batch_size", "batch")
@@ -217,6 +231,87 @@ class _BaseModelLoaderTrio:
         }
 
     @classmethod
+    def _resolve_a1111_text_conditioning_config(cls) -> Dict[str, Any] | None:
+        cls._ensure_smz_sdxl_compatibility()
+        text_conditioning_class = try_resolve_node_class(
+            "CLIP Text Encode++",
+            ("smZ CLIPTextEncode", "smZ_CLIPTextEncode"),
+        )
+        if text_conditioning_class is None:
+            return None
+
+        required_inputs = get_required_inputs(text_conditioning_class)
+
+        clip_key, _ = find_first_input(required_inputs, cls._TEXT_CONDITIONING_CLIP_KEYS)
+        text_key, _ = find_first_input(required_inputs, cls._TEXT_CONDITIONING_TEXT_KEYS)
+        if clip_key is None or text_key is None:
+            raise RuntimeError(
+                "Could not resolve the required CLIP/text inputs for "
+                "CLIP Text Encode++."
+            )
+
+        def _optional_key(candidates):
+            key, _ = find_first_input(required_inputs, candidates)
+            return key
+
+        return {
+            "class": text_conditioning_class,
+            "required": required_inputs,
+            "clip_key": clip_key,
+            "text_key": text_key,
+            "text_g_key": _optional_key(cls._A1111_TEXT_G_KEYS),
+            "text_l_key": _optional_key(cls._A1111_TEXT_L_KEYS),
+            "parser_key": _optional_key(cls._A1111_PARSER_KEYS),
+            "with_sdxl_key": _optional_key(cls._A1111_WITH_SDXL_KEYS),
+            "width_key": _optional_key(cls._A1111_WIDTH_KEYS),
+            "height_key": _optional_key(cls._A1111_HEIGHT_KEYS),
+            "target_width_key": _optional_key(cls._A1111_TARGET_WIDTH_KEYS),
+            "target_height_key": _optional_key(cls._A1111_TARGET_HEIGHT_KEYS),
+            "crop_w_key": _optional_key(cls._A1111_CROP_W_KEYS),
+            "crop_h_key": _optional_key(cls._A1111_CROP_H_KEYS),
+        }
+
+    @classmethod
+    def _ensure_smz_sdxl_compatibility(cls):
+        try:
+            from comfy_extras.nodes_clip_sdxl import (  # type: ignore
+                CLIPTextEncodeSDXL,
+                CLIPTextEncodeSDXLRefiner,
+            )
+        except Exception:
+            return
+
+        ensure_legacy_node_alias(CLIPTextEncodeSDXL, "encode")
+        ensure_legacy_node_alias(CLIPTextEncodeSDXLRefiner, "encode")
+
+    @classmethod
+    def _resolve_clip_skip_config(cls) -> Dict[str, Any]:
+        clip_skip_class = resolve_node_class(
+            "CLIP Set Last Layer",
+            ("CLIPSetLastLayer",),
+        )
+        required_inputs = get_required_inputs(clip_skip_class)
+        clip_key, _ = find_first_input(
+            required_inputs,
+            cls._CLIP_SET_LAST_LAYER_CLIP_KEYS,
+        )
+        layer_key, _ = find_first_input(
+            required_inputs,
+            cls._CLIP_SET_LAST_LAYER_LAYER_KEYS,
+        )
+        if clip_key is None or layer_key is None:
+            raise RuntimeError(
+                "Could not resolve the required inputs for CLIP Set Last Layer."
+            )
+
+        return {
+            "class": clip_skip_class,
+            "required": required_inputs,
+            "clip_key": clip_key,
+            "layer_key": layer_key,
+        }
+
+    @classmethod
     def _resolve_empty_latent_config(cls) -> Dict[str, Any]:
         empty_latent_class = resolve_node_class(
             "Empty Latent Image",
@@ -254,7 +349,65 @@ class _BaseModelLoaderTrio:
         }
 
     @classmethod
-    def _encode_text_conditioning(cls, clip, prompt: str):
+    def _apply_clip_skip(cls, clip, clip_skip: int):
+        if int(clip_skip) == -1:
+            return clip
+
+        config = cls._resolve_clip_skip_config()
+        kwargs = build_required_kwargs(
+            config["required"],
+            {
+                config["clip_key"]: clip,
+                config["layer_key"]: int(clip_skip),
+            },
+        )
+        return run_node(config["class"], kwargs)[0]
+
+    @classmethod
+    def _encode_text_conditioning(
+        cls,
+        clip,
+        prompt: str,
+        width: int,
+        height: int,
+        a1111_prompt_style: bool = False,
+    ):
+        if a1111_prompt_style:
+            config = cls._resolve_a1111_text_conditioning_config()
+            if config is None:
+                raise RuntimeError(
+                    "A1111 prompt style requires ComfyUI_smZNodes "
+                    "(CLIP Text Encode++)."
+                )
+
+            explicit_values = {
+                config["clip_key"]: clip,
+                config["text_key"]: str(prompt),
+            }
+            if config["text_g_key"] is not None:
+                explicit_values[config["text_g_key"]] = str(prompt)
+            if config["text_l_key"] is not None:
+                explicit_values[config["text_l_key"]] = str(prompt)
+            if config["parser_key"] is not None:
+                explicit_values[config["parser_key"]] = "A1111"
+            if config["with_sdxl_key"] is not None:
+                explicit_values[config["with_sdxl_key"]] = True
+            if config["width_key"] is not None:
+                explicit_values[config["width_key"]] = int(width)
+            if config["height_key"] is not None:
+                explicit_values[config["height_key"]] = int(height)
+            if config["target_width_key"] is not None:
+                explicit_values[config["target_width_key"]] = int(width)
+            if config["target_height_key"] is not None:
+                explicit_values[config["target_height_key"]] = int(height)
+            if config["crop_w_key"] is not None:
+                explicit_values[config["crop_w_key"]] = 0
+            if config["crop_h_key"] is not None:
+                explicit_values[config["crop_h_key"]] = 0
+
+            kwargs = build_required_kwargs(config["required"], explicit_values)
+            return run_node(config["class"], kwargs)[0]
+
         config = cls._resolve_text_conditioning_config()
         kwargs = build_required_kwargs(
             config["required"],
@@ -332,6 +485,8 @@ class ModelLoaderTrioWithParams(_BaseModelLoaderTrio):
         required["height"] = ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8})
         required["positive_prompt"] = ("STRING", {"default": "", "multiline": True})
         required["negative_prompt"] = ("STRING", {"default": "", "multiline": True})
+        required["clip_skip"] = ("INT", {"default": -1, "min": -24, "max": -1, "step": 1})
+        required["a1111_prompt_style"] = ("BOOLEAN", {"default": False})
         required["batch_size"] = ("INT", {"default": 1, "min": 1, "max": 64, "step": 1})
         return {
             "required": required,
@@ -370,6 +525,8 @@ class ModelLoaderTrioWithParams(_BaseModelLoaderTrio):
         height,
         positive_prompt,
         negative_prompt,
+        clip_skip,
+        a1111_prompt_style,
         batch_size,
         diffusion_weight_dtype=None,
         clip_type=None,
@@ -384,9 +541,22 @@ class ModelLoaderTrioWithParams(_BaseModelLoaderTrio):
             clip_type=clip_type,
             clip_device=clip_device,
         )
+        clip = self._apply_clip_skip(clip, clip_skip)
 
-        positive_conditioning = self._encode_text_conditioning(clip, positive_prompt)
-        negative_conditioning = self._encode_text_conditioning(clip, negative_prompt)
+        positive_conditioning = self._encode_text_conditioning(
+            clip,
+            positive_prompt,
+            width,
+            height,
+            a1111_prompt_style=a1111_prompt_style,
+        )
+        negative_conditioning = self._encode_text_conditioning(
+            clip,
+            negative_prompt,
+            width,
+            height,
+            a1111_prompt_style=a1111_prompt_style,
+        )
         latent_image = self._create_empty_latent(width, height, batch_size)
         pipe_out = (
             model,

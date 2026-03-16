@@ -27,6 +27,29 @@ def resolve_node_class(display_name: str, fallback_class_names: Iterable[str]):
     )
 
 
+def try_resolve_node_class(display_name: str, fallback_class_names: Iterable[str]):
+    try:
+        return resolve_node_class(display_name, fallback_class_names)
+    except RuntimeError:
+        return None
+
+
+def ensure_legacy_node_alias(node_class, alias_name: str = "encode") -> bool:
+    if hasattr(node_class, alias_name):
+        return False
+
+    function_name = getattr(node_class, "FUNCTION", None)
+    if function_name and function_name in getattr(node_class, "__dict__", {}):
+        setattr(node_class, alias_name, node_class.__dict__[function_name])
+        return True
+
+    if "execute" in getattr(node_class, "__dict__", {}):
+        setattr(node_class, alias_name, node_class.__dict__["execute"])
+        return True
+
+    return False
+
+
 def get_required_inputs(node_class) -> Dict[str, Any]:
     input_types = node_class.INPUT_TYPES()
     required_inputs = input_types.get("required", {})

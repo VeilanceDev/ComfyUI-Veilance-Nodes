@@ -71,8 +71,8 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - `hires_fix` exports `PipeHiResFix` / `HiRes Fix`, a refine-stage wrapper node that preserves `PIPE` slot order, defaults to `upscale_by = 1.5` and `denoise = 0.3`, supports latent upscale-by fallback, and can optionally use ComfyUI's built-in `Load Upscale Model` + `Upscale Image (using Model)` path before the denoise pass.
 - `hires_fix` populates `upscale_model` from ComfyUI's registered upscale-model lists, preferring the `upscale_models` registry used for ESRGAN/upscale models with a legacy `esrgan` fallback.
 - `hires_fix` now respects the requested `upscale_by` even when an ESRGAN/upscale model has a different native scale by resizing the model-upscaled image back to the node's target dimensions before VAE re-encode.
-- `model_loader_trio` keeps legacy class keys (`ModelLoaderTrio`, `ModelLoaderTrioWithParams`) for workflow compatibility, but the display names are `Load Model + Clip + VAE` and `Load Model + Clip + VAE (Adv.)`.
-- `model_loader_checkpoint_vae` exports both `ModelLoaderCheckpointVAE` and `ModelLoaderCheckpointVAEWithParams`; the advanced variant adds prompt conditioning and empty latent outputs while preserving the standard `PIPE` slot order.
+- `model_loader_trio` keeps legacy class keys (`ModelLoaderTrio`, `ModelLoaderTrioWithParams`) for workflow compatibility, but the display names are `Load Model + Clip + VAE` and `Load Model + Clip + VAE (Adv.)`; the advanced variant also exposes `clip_skip` and optional `a1111_prompt_style`, applying ComfyUI `CLIP Set Last Layer` before prompt encoding and using `ComfyUI_smZNodes` `CLIP Text Encode++` when A1111 mode is enabled. Before invoking that path it patches ComfyUI SDXL encoder classes with a legacy `encode` alias when newer builds only expose `execute`, preventing the current `smZNodes` SDXL API mismatch from crashing.
+- `model_loader_checkpoint_vae` exports both `ModelLoaderCheckpointVAE` and `ModelLoaderCheckpointVAEWithParams`; the advanced variant adds prompt conditioning and empty latent outputs while preserving the standard `PIPE` slot order, and now mirrors the trio advanced loader's `clip_skip` plus optional `a1111_prompt_style` behavior, including the same SDXL `smZNodes` compatibility shim.
 - `prompt_selector` dynamically generates classes at runtime from `data/prompts/`.
 - Prompt selector class names now append a stable hash suffix only when multiple categories normalize to the same legacy class key, avoiding registry collisions while preserving legacy names when unique.
 - Dynamic prompt selector nodes are grouped under the ComfyUI category path `Veilance/Prompts/Dynamic Lists`.
@@ -124,6 +124,7 @@ When reviewing code, prioritize:
 9. Variable-node resolution in `workflow_utils` (exact-name matching, duplicate detection, arbitrary-type passthrough, and safe behavior when prompt metadata is missing).
 10. Source-filename tracing in `workflow_utils` (loader key mapping, pipe component routing, baked-VAE fallback, and graceful `<unknown filename>` behavior on unsupported graphs).
 11. HiRes Fix compatibility and fallback behavior (`hires_fix` should stay usable when ComfyUI upscale-model extras are unavailable in latent-only mode, while image-model mode should fail with a targeted runtime error).
+12. Advanced loader prompt compatibility (`clip_skip` should be applied before conditioning; enabling `a1111_prompt_style` should fail with a clear runtime error when `ComfyUI_smZNodes` is unavailable and otherwise route through `CLIP Text Encode++`).
 
 ## Local Validation
 
