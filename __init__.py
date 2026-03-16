@@ -38,6 +38,7 @@ _NODE_PACKAGE_ORDER = [
     "model_loader_checkpoint_vae",
     "prompt_cleaner",
     "pipe_ksampler",
+    "hires_fix",
     "pipe_builder",
     "pipe_router",
     "sampler_presets",
@@ -50,6 +51,7 @@ _NODE_PACKAGE_ORDER = [
     "film_grain",
     "image_artifacts",
     "text_utils",
+    "math_expression",
     "image_adjustments",
     "workflow_utils",
 ]

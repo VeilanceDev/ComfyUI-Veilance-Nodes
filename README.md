@@ -25,6 +25,7 @@ pip install -r requirements.txt
 - `Pipe Builder`
 - `Pipe Router`
 - `KSampler (Pipe Full)`
+- `HiRes Fix`
 - `Sampler Presets`
 - `Seed Strategy`
 - `LoRA Stack`
@@ -48,6 +49,8 @@ pip install -r requirements.txt
 - `Set Variable` (`Veilance/Utils`)
 - `Get Variable` (`Veilance/Utils`)
 - `Image Size & Empty Latent` (`Veilance/Utils`)
+
+`HiRes Fix` is a refine-stage sampler for existing latents or images. It can either upscale the latent directly by factor or optionally decode, run a built-in ComfyUI upscale model such as `ultrasharp_x4.pt`, re-encode, and then apply a denoise pass at the higher resolution.
 
 ## Prompt Selector Data
 

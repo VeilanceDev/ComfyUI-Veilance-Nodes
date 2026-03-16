@@ -23,7 +23,7 @@ The root [`__init__.py`](__init__.py) serves as the main entry point that:
 
 ### Shared Compatibility Helpers
 
-[`comfy_reflection.py`](comfy_reflection.py) centralizes ComfyUI node reflection helpers used by compatibility wrapper nodes. It handles fallback class resolution, required-input discovery, default extraction, kwargs building, and node execution normalization so loader/sampler wrappers do not drift from each other.
+[`comfy_reflection.py`](comfy_reflection.py) centralizes ComfyUI node reflection helpers used by compatibility wrapper nodes. It handles fallback class resolution, required-input discovery, default extraction, kwargs building, and node execution normalization, including unwrapping ComfyUI V3 `NodeOutput` results, so loader/sampler wrappers do not drift from each other.
 
 ### Node Module Pattern
 
@@ -200,6 +200,57 @@ A pipe-aware sampler node that wraps ComfyUI's built-in `KSampler`, supports lat
 - `seed` (INT): Seed used for sampling
 
 **Category:** `sampling`
+
+---
+
+### HiRes Fix
+
+**Location:** [`hires_fix/`](hires_fix/)
+
+A pipe-aware refine node for second-pass high-resolution sampling. It accepts an existing latent or image, upscales it either in latent space or with an optional ComfyUI upscale model, then runs a denoise pass through the built-in `KSampler`.
+
+**Files:**
+- [`hires_fix.py`](hires_fix/hires_fix.py) - Node implementation
+
+**Inputs:**
+- `upscale_by` (FLOAT): Multiplier for the high-resolution pass (default: `1.5`)
+- `upscale_model` (COMBO): Optional built-in ComfyUI upscale-model choice with `None` disabling model-based image upscale; options are populated from ComfyUI's registered upscale-model lists, including ESRGAN models
+- `latent_upscale_method` (COMBO): Latent upscale interpolation method, preferring `bislerp` when available
+- `steps` (INT): Sampling step count for the refinement pass
+- `cfg` (FLOAT): Classifier-free guidance scale for the refinement pass
+- `sampler_name` (COMBO): Sampler algorithm selection (from built-in `KSampler`)
+- `scheduler` (COMBO): Scheduler selection (from built-in `KSampler`)
+- `denoise` (FLOAT): Denoise strength for the refinement pass (default: `0.3`)
+- `image_output` (COMBO): `Preview` or `Hide` preview behavior
+- `seed` (INT): Sampling seed (with control-after-generate support)
+- `pipe` (PIPE, optional): Pipe fallback source
+- `model` (MODEL, optional): Overrides `pipe[0]`
+- `positive` (CONDITIONING, optional): Overrides `pipe[3]`
+- `negative` (CONDITIONING, optional): Overrides `pipe[4]`
+- `latent` (LATENT, optional): Overrides `pipe[5]`
+- `image` (IMAGE, optional): Used for image-based fallback and optional image-model upscaling
+- `vae` (VAE, optional): Overrides `pipe[2]` and is used for decode/encode
+- `clip` (CLIP, optional): Overrides `pipe[1]`
+- `xyPlot` (XYPLOT, optional): Compatibility passthrough input
+
+**Outputs:**
+- `pipe` (PIPE): Pipe tuple `(model, clip, vae, positive, negative, latent, seed, ...)`
+- `image` (IMAGE): VAE-decoded image from the refined latent
+- `model` (MODEL): Effective model used for refinement
+- `positive` (CONDITIONING): Effective positive conditioning
+- `negative` (CONDITIONING): Effective negative conditioning
+- `latent` (LATENT): Refined latent output
+- `vae` (VAE): Effective VAE used for decode/encode
+- `clip` (CLIP): Effective CLIP passthrough
+- `seed` (INT): Seed used for refinement
+
+**Behavior Notes:**
+- With `upscale_model = None`, the node performs latent upscale-by before denoising.
+- With an upscale model selected, the node uses ComfyUI's built-in `Load Upscale Model` and `Upscale Image (using Model)` path, then resizes that result to the requested `upscale_by` target before re-encoding to latent for denoising.
+- If ComfyUI's latent upscale wrapper node is unavailable, the node falls back to `comfy.utils.common_upscale` for latent-only mode.
+- The node preserves any extra `PIPE` tail values unchanged.
+
+**Category:** `Veilance/Sampling`
 
 ---
 

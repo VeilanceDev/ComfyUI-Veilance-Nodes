@@ -21,6 +21,7 @@ This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__
   - `pipe_builder/`
   - `pipe_router/`
   - `pipe_ksampler/`
+  - `hires_fix/`
   - `sampler_presets/`
   - `seed_strategy/`
   - `lora_stack/`
@@ -31,10 +32,12 @@ This project is a ComfyUI custom-node package. The root [`__init__.py`](__init__
   - `film_grain/`
   - `image_artifacts/`
   - `text_utils/`
+  - `math_expression/`
   - `image_adjustments/`
   - `workflow_utils/`
   - `workflow_utils/source_filename_nodes.py`: graph-aware MODEL/CLIP/VAE filename extraction from prompt metadata.
 - Frontend extensions: `js/`
+- `js/image_loader.js`: image-loader frontend controls, including icon-only rotation buttons that update the node preview.
 - Prompt data: `data/prompts/`
 
 ## Node Contract
@@ -64,7 +67,10 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
   - `5 latent`
   - `6 seed`
 - Some nodes preserve extra `PIPE` tail values; do not truncate unless intentional.
-- Compatibility wrapper nodes (`model_loader_trio`, `model_loader_checkpoint_vae`, `pipe_ksampler`, `lora_stack`, `sampler_presets`) share reflection utilities from `comfy_reflection.py`; update the shared helper first when changing fallback class resolution or required-input handling.
+- Compatibility wrapper nodes (`model_loader_trio`, `model_loader_checkpoint_vae`, `pipe_ksampler`, `lora_stack`, `sampler_presets`) share reflection utilities from `comfy_reflection.py`; update the shared helper first when changing fallback class resolution, required-input handling, or ComfyUI normalized-output compatibility.
+- `hires_fix` exports `PipeHiResFix` / `HiRes Fix`, a refine-stage wrapper node that preserves `PIPE` slot order, defaults to `upscale_by = 1.5` and `denoise = 0.3`, supports latent upscale-by fallback, and can optionally use ComfyUI's built-in `Load Upscale Model` + `Upscale Image (using Model)` path before the denoise pass.
+- `hires_fix` populates `upscale_model` from ComfyUI's registered upscale-model lists, preferring the `upscale_models` registry used for ESRGAN/upscale models with a legacy `esrgan` fallback.
+- `hires_fix` now respects the requested `upscale_by` even when an ESRGAN/upscale model has a different native scale by resizing the model-upscaled image back to the node's target dimensions before VAE re-encode.
 - `model_loader_trio` keeps legacy class keys (`ModelLoaderTrio`, `ModelLoaderTrioWithParams`) for workflow compatibility, but the display names are `Load Model + Clip + VAE` and `Load Model + Clip + VAE (Adv.)`.
 - `model_loader_checkpoint_vae` exports both `ModelLoaderCheckpointVAE` and `ModelLoaderCheckpointVAEWithParams`; the advanced variant adds prompt conditioning and empty latent outputs while preserving the standard `PIPE` slot order.
 - `prompt_selector` dynamically generates classes at runtime from `data/prompts/`.
@@ -76,7 +82,7 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - Alias metadata stores `api_provider`, `custom_api_url`, `model`, and key-source metadata in `nano_gpt/aliases.json`, while API keys are resolved from OS keyring (`keyring`) or env vars.
 - `nano_gpt` image input requires Pillow and numpy at runtime; missing deps now return a clear node error instead of failing later during image conversion.
 - `nano_gpt` response caching is an in-memory LRU+TTL cache keyed by request payload plus auth scope (`manual` vs `alias`, alias name when used, API-key fingerprint), so cached responses do not leak across different credentials.
-- `image_loader` provides `Load Image (Upload or URL)`, which mirrors ComfyUI-style local upload selection via `image_upload` and can alternatively fetch an HTTP/HTTPS image URL, returning standard `IMAGE` and `MASK` outputs.
+- `image_loader` provides `Load Image (Upload or URL)`, which mirrors ComfyUI-style local upload selection via `image_upload`, can alternatively fetch one or more HTTP/HTTPS image URLs from the multiline `image_url` field (one URL per line), and applies quarter-turn rotation through icon-only frontend buttons backed by a hidden `rotation_steps` input so execution output and preview stay aligned.
 - `nano_gpt` registers alias management routes:
   - `GET /veilance/nano_gpt/aliases`
   - `POST /veilance/nano_gpt/aliases/upsert`
@@ -87,6 +93,7 @@ Resolution selector currently exports both `ResolutionSelector` and `VeilanceRes
 - `film_grain` provides deterministic torch-based film grain with stock presets, clumped band-limited grain synthesis, adaptive luminance/detail masking, stock-specific RGB chroma imbalance, and mild resolution-aware grain scaling.
 - `film_grain` exposes optional `clumpiness_scale` and `resolution_response_scale` inputs as stock-relative multipliers; the default `1.0` preserves each stock preset's internal tuning.
 - `image_artifacts` provides a Pillow-backed `Jpegify` node that simulates JPEG re-encode artifacts in memory, preserves non-RGB extra channels, and raises a clear runtime error when Pillow/numpy are unavailable.
+- `math_expression` provides `Math Expression`, a safe AST-based evaluator node with `x/y/z/w` variables (plus `a/b/c/d` aliases), optional linked numeric overrides, and `FLOAT` + `INT` outputs for arithmetic expressions without using Python `eval`.
 - `workflow_utils` is organized into focused modules (`switch_nodes.py`, `image_nodes.py`, `helpers.py`, `registry.py`), while `workflow_utils/workflow_utils.py` remains the compatibility export surface for existing imports.
 - `workflow_utils` also includes `global_nodes.py` for `Global Sampler + Scheduler` and `Global Seed`; `js/global_controls.js` propagates those widget values to matching sampler/scheduler/seed widgets across the loaded graph.
 - `workflow_utils` also includes `variable_nodes.py` for `Set Variable` and `Get Variable`; `Get Variable` resolves a matching `Set Variable` by exact `name` from prompt metadata at execution time, expands through `VeilanceAnySwitch` to preserve arbitrary upstream datatypes, and raises a clear runtime error when names are missing or duplicated.
@@ -116,6 +123,7 @@ When reviewing code, prioritize:
 8. Image-processing safety in `image_sharpen`, `film_grain`, and `image_artifacts` (batch shape preservation, clamping, deterministic behavior where applicable, preserved extra channels, and graceful runtime handling).
 9. Variable-node resolution in `workflow_utils` (exact-name matching, duplicate detection, arbitrary-type passthrough, and safe behavior when prompt metadata is missing).
 10. Source-filename tracing in `workflow_utils` (loader key mapping, pipe component routing, baked-VAE fallback, and graceful `<unknown filename>` behavior on unsupported graphs).
+11. HiRes Fix compatibility and fallback behavior (`hires_fix` should stay usable when ComfyUI upscale-model extras are unavailable in latent-only mode, while image-model mode should fail with a targeted runtime error).
 
 ## Local Validation
 

@@ -54,6 +54,14 @@ def _require_image_dependencies() -> None:
         )
 
 
+def _parse_image_urls(image_url: str) -> list[str]:
+    return [
+        line.strip()
+        for line in str(image_url or "").splitlines()
+        if line.strip()
+    ]
+
+
 def _list_uploadable_images() -> list[str]:
     if folder_paths is None or not hasattr(folder_paths, "get_input_directory"):
         return [""]
@@ -222,6 +230,73 @@ def _load_remote_image(image_url: str) -> tuple[torch.Tensor, torch.Tensor]:
         return _load_frames_as_tensors(img)
 
 
+def _combine_image_batches(
+    loaded_batches: list[tuple[str, torch.Tensor, torch.Tensor]]
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if not loaded_batches:
+        raise RuntimeError("No image URLs were provided.")
+
+    if len(loaded_batches) == 1:
+        _, image_tensor, mask_tensor = loaded_batches[0]
+        return image_tensor, mask_tensor
+
+    expected_image_shape = tuple(loaded_batches[0][1].shape[1:])
+    expected_mask_shape = tuple(loaded_batches[0][2].shape[1:])
+
+    image_tensors: list[torch.Tensor] = []
+    mask_tensors: list[torch.Tensor] = []
+
+    for url, image_tensor, mask_tensor in loaded_batches:
+        image_shape = tuple(image_tensor.shape[1:])
+        mask_shape = tuple(mask_tensor.shape[1:])
+        if image_shape != expected_image_shape:
+            raise RuntimeError(
+                "All URL images must share the same image dimensions and channels to "
+                f"be batched. Expected {expected_image_shape}, got {image_shape} for "
+                f"'{url}'."
+            )
+        if mask_shape != expected_mask_shape:
+            raise RuntimeError(
+                "All URL images must share the same mask dimensions to be batched. "
+                f"Expected {expected_mask_shape}, got {mask_shape} for '{url}'."
+            )
+
+        image_tensors.append(image_tensor)
+        mask_tensors.append(mask_tensor)
+
+    return torch.cat(image_tensors, dim=0), torch.cat(mask_tensors, dim=0)
+
+
+def _load_remote_images(image_url: str) -> tuple[torch.Tensor, torch.Tensor]:
+    urls = _parse_image_urls(image_url)
+    if not urls:
+        raise RuntimeError(
+            "image_url must contain at least one http:// or https:// image URL."
+        )
+
+    loaded_batches = []
+    for url in urls:
+        loaded_image, loaded_mask = _load_remote_image(url)
+        loaded_batches.append((url, loaded_image, loaded_mask))
+
+    return _combine_image_batches(loaded_batches)
+
+
+def _rotate_image_and_mask(
+    image_tensor: torch.Tensor,
+    mask_tensor: torch.Tensor,
+    rotation_steps: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    steps = int(rotation_steps) % 4
+    if steps == 0:
+        return image_tensor, mask_tensor
+
+    # IMAGE tensors are BHWC, MASK tensors are BHW.
+    rotated_image = torch.rot90(image_tensor, k=-steps, dims=(1, 2))
+    rotated_mask = torch.rot90(mask_tensor, k=-steps, dims=(1, 2))
+    return rotated_image, rotated_mask
+
+
 class VeilanceLoadImageUploadOrUrl:
     @classmethod
     def INPUT_TYPES(cls):
@@ -229,7 +304,8 @@ class VeilanceLoadImageUploadOrUrl:
             "required": {
                 "source": (["upload", "url"], {"default": "upload"}),
                 "image": (_list_uploadable_images(), {"image_upload": True}),
-                "image_url": ("STRING", {"default": "https://", "multiline": False}),
+                "image_url": ("STRING", {"default": "https://", "multiline": True}),
+                "rotation_steps": ("INT", {"default": 0, "min": 0, "max": 3, "step": 1}),
             }
         }
 
@@ -246,11 +322,25 @@ class VeilanceLoadImageUploadOrUrl:
     ]
 
     @classmethod
-    def VALIDATE_INPUTS(cls, source, image, image_url):
+    def VALIDATE_INPUTS(cls, source, image, image_url, rotation_steps):
+        try:
+            rotation = int(rotation_steps)
+        except (TypeError, ValueError):
+            return "rotation_steps must be an integer between 0 and 3."
+        if rotation < 0 or rotation > 3:
+            return "rotation_steps must be an integer between 0 and 3."
+
         if source == "url":
-            parsed = urlparse(str(image_url or "").strip())
-            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-                return "image_url must be an http:// or https:// image URL."
+            urls = _parse_image_urls(image_url)
+            if not urls:
+                return "image_url must contain at least one http:// or https:// image URL."
+            for url in urls:
+                parsed = urlparse(url)
+                if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                    return (
+                        "Each image_url line must be an http:// or https:// image URL. "
+                        f"Invalid line: '{url}'."
+                    )
             return True
 
         try:
@@ -260,23 +350,26 @@ class VeilanceLoadImageUploadOrUrl:
         return True
 
     @classmethod
-    def IS_CHANGED(cls, source, image, image_url):
+    def IS_CHANGED(cls, source, image, image_url, rotation_steps):
+        rotation = int(rotation_steps) % 4
         if source == "url":
             return float("nan")
 
         try:
             image_path = _resolve_uploaded_image_path(image)
-            return f"upload:{_hash_file(image_path)}"
+            return f"upload:{_hash_file(image_path)}:rotation:{rotation}"
         except Exception:
             return float("nan")
 
-    def load_image(self, source, image, image_url):
+    def load_image(self, source, image, image_url, rotation_steps):
         _require_image_dependencies()
 
         if source == "url":
-            return _load_remote_image(str(image_url or "").strip())
+            loaded_image, loaded_mask = _load_remote_images(image_url)
+        else:
+            loaded_image, loaded_mask = _load_uploaded_image(image)
 
-        return _load_uploaded_image(image)
+        return _rotate_image_and_mask(loaded_image, loaded_mask, rotation_steps)
 
 
 NODE_CLASS_MAPPINGS = {

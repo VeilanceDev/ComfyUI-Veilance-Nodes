@@ -450,6 +450,15 @@ def _trace_filename(
                 return _trace_ksampler_component(prompt, inputs, PIPE_CLIP_INDEX, visited)
             return None
 
+        if class_type == "PipeHiResFix":
+            if output_index == 2:
+                return _trace_ksampler_component(prompt, inputs, PIPE_MODEL_INDEX, visited)
+            if output_index == 6:
+                return _trace_ksampler_component(prompt, inputs, PIPE_VAE_INDEX, visited)
+            if output_index == 7:
+                return _trace_ksampler_component(prompt, inputs, PIPE_CLIP_INDEX, visited)
+            return None
+
         if class_type == "LoraStack5":
             if output_index == 1:
                 return _trace_lora_stack_component(prompt, inputs, PIPE_MODEL_INDEX, visited)
@@ -508,6 +517,8 @@ def _trace_pipe_component(
         if class_type == "PipeRouter" and output_index == 0:
             return _trace_pipe_component(prompt, _resolve_router_pipe_link(inputs), component_index, visited)
         if class_type == "PipeKSamplerFull" and output_index == 0:
+            return _trace_ksampler_component(prompt, inputs, component_index, visited)
+        if class_type == "PipeHiResFix" and output_index == 0:
             return _trace_ksampler_component(prompt, inputs, component_index, visited)
         if class_type == "LoraStack5" and output_index == 0:
             return _trace_lora_stack_component(prompt, inputs, component_index, visited)

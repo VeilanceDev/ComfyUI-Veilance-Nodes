@@ -85,6 +85,13 @@ def run_node(node_class, kwargs: Dict[str, Any]) -> Tuple[Any, ...]:
     node_fn = getattr(node, function_name)
     result = node_fn(**kwargs)
 
+    node_result = getattr(result, "result", None)
+    if hasattr(result, "args") and node_result is not None:
+        if isinstance(node_result, tuple):
+            return node_result
+        if isinstance(node_result, list):
+            return tuple(node_result)
+        return (node_result,)
     if isinstance(result, tuple):
         return result
     if isinstance(result, list):
