@@ -23,14 +23,18 @@ The root [`__init__.py`](__init__.py) serves as the main entry point that:
 
 ### Shared Compatibility Helpers
 
-[`comfy_reflection.py`](comfy_reflection.py) centralizes ComfyUI node reflection helpers used by compatibility wrapper nodes. It handles fallback class resolution, required-input discovery, default extraction, kwargs building, and node execution normalization, including unwrapping ComfyUI V3 `NodeOutput` results, so loader/sampler wrappers do not drift from each other.
+[`utils/comfy_reflection.py`](utils/comfy_reflection.py) centralizes ComfyUI node reflection helpers used by compatibility wrapper nodes. It handles fallback class resolution, required-input discovery, default extraction, kwargs building, node execution normalization, shared KSampler/VAE/preview wrappers, and advanced prompt-conditioning helpers, including unwrapping ComfyUI V3 `NodeOutput` results, so loader/sampler wrappers do not drift from each other.
+
+[`utils/pipe_utils.py`](utils/pipe_utils.py) defines the canonical `PIPE` slot indexes and tuple/list helpers. Nodes should use these constants when reading or preserving pipe payloads.
+
+[`utils/http_utils.py`](utils/http_utils.py) provides bounded HTTP response readers for network-backed nodes such as `image_loader` and `nano_gpt`.
 
 ### Node Module Pattern
 
 Each node is organized in its own subdirectory with a consistent structure:
 
 ```
-node_name/
+node_packages/node_name/
 ├── __init__.py          # Exports NODE_CLASS_MAPPINGS and NODE_DISPLAY_NAME_MAPPINGS
 ├── node_name.py         # Main node implementation
 ├── (optional) helper modules
@@ -43,12 +47,12 @@ node_name/
 
 ### Load Model + Clip + VAE
 
-**Location:** [`model_loader_trio/`](model_loader_trio/)
+**Location:** [`node_packages/model_loader_trio/`](node_packages/model_loader_trio/)
 
 A convenience loader node that combines ComfyUI's built-in model loaders into one node and outputs all three model types together.
 
 **Files:**
-- [`model_loader_trio.py`](model_loader_trio/model_loader_trio.py) - Node implementation
+- [`model_loader_trio.py`](node_packages/model_loader_trio/model_loader_trio.py) - Node implementation
 
 **Inputs:**
 - `diffusion_model` (COMBO): Diffusion model selection (same source/options as built-in `Load Diffusion Model`)
@@ -71,12 +75,12 @@ A convenience loader node that combines ComfyUI's built-in model loaders into on
 
 ### Load Model + Clip + VAE (Adv.)
 
-**Location:** [`model_loader_trio/`](model_loader_trio/)
+**Location:** [`node_packages/model_loader_trio/`](node_packages/model_loader_trio/)
 
 A combined model loader node with extra workflow widgets for prompt and latent setup.
 
 **Files:**
-- [`model_loader_trio.py`](model_loader_trio/model_loader_trio.py) - Node implementation
+- [`model_loader_trio.py`](node_packages/model_loader_trio/model_loader_trio.py) - Node implementation
 
 **Inputs:**
 - `diffusion_model` (COMBO): Diffusion model selection
@@ -109,12 +113,12 @@ A combined model loader node with extra workflow widgets for prompt and latent s
 
 ### Load Checkpoint + VAE
 
-**Location:** [`model_loader_checkpoint_vae/`](model_loader_checkpoint_vae/)
+**Location:** [`node_packages/model_loader_checkpoint_vae/`](node_packages/model_loader_checkpoint_vae/)
 
 A checkpoint-based loader that reuses the built-in checkpoint loader for `model` and `clip`, while letting the node use either the baked checkpoint VAE or an external VAE file.
 
 **Files:**
-- [`model_loader_checkpoint_vae.py`](model_loader_checkpoint_vae/model_loader_checkpoint_vae.py) - Node implementation
+- [`model_loader_checkpoint_vae.py`](node_packages/model_loader_checkpoint_vae/model_loader_checkpoint_vae.py) - Node implementation
 
 **Inputs:**
 - `checkpoint_model` (COMBO): Checkpoint selection (same source/options as built-in `Load Checkpoint`)
@@ -133,12 +137,12 @@ A checkpoint-based loader that reuses the built-in checkpoint loader for `model`
 
 ### Load Checkpoint + VAE (Adv.)
 
-**Location:** [`model_loader_checkpoint_vae/`](model_loader_checkpoint_vae/)
+**Location:** [`node_packages/model_loader_checkpoint_vae/`](node_packages/model_loader_checkpoint_vae/)
 
 An advanced checkpoint-based loader that also prepares prompt conditioning and an empty latent image so the node can seed a full `PIPE` in one step.
 
 **Files:**
-- [`model_loader_checkpoint_vae.py`](model_loader_checkpoint_vae/model_loader_checkpoint_vae.py) - Node implementation
+- [`model_loader_checkpoint_vae.py`](node_packages/model_loader_checkpoint_vae/model_loader_checkpoint_vae.py) - Node implementation
 
 **Inputs:**
 - `checkpoint_model` (COMBO): Checkpoint selection
@@ -167,12 +171,12 @@ An advanced checkpoint-based loader that also prepares prompt conditioning and a
 
 ### KSampler (Pipe Full)
 
-**Location:** [`pipe_ksampler/`](pipe_ksampler/)
+**Location:** [`node_packages/pipe_ksampler/`](node_packages/pipe_ksampler/)
 
 A pipe-aware sampler node that wraps ComfyUI's built-in `KSampler`, supports latent fallback from `pipe`, optional image-to-latent encoding via VAE, and returns both updated `pipe` and decoded image output.
 
 **Files:**
-- [`pipe_ksampler.py`](pipe_ksampler/pipe_ksampler.py) - Node implementation
+- [`pipe_ksampler.py`](node_packages/pipe_ksampler/pipe_ksampler.py) - Node implementation
 
 **Inputs:**
 - `steps` (INT): Sampling step count
@@ -209,12 +213,12 @@ A pipe-aware sampler node that wraps ComfyUI's built-in `KSampler`, supports lat
 
 ### HiRes Fix
 
-**Location:** [`hires_fix/`](hires_fix/)
+**Location:** [`node_packages/hires_fix/`](node_packages/hires_fix/)
 
 A pipe-aware refine node for second-pass high-resolution sampling. It accepts an existing latent or image, upscales it either in latent space or with an optional ComfyUI upscale model, then runs a denoise pass through the built-in `KSampler`.
 
 **Files:**
-- [`hires_fix.py`](hires_fix/hires_fix.py) - Node implementation
+- [`hires_fix.py`](node_packages/hires_fix/hires_fix.py) - Node implementation
 
 **Inputs:**
 - `upscale_by` (FLOAT): Multiplier for the high-resolution pass (default: `1.5`)
@@ -258,14 +262,41 @@ A pipe-aware refine node for second-pass high-resolution sampling. It accepts an
 
 ---
 
+### Image Upscaler
+
+**Location:** [`node_packages/image_upscaler/`](node_packages/image_upscaler/)
+
+An image-only wrapper around ComfyUI's built-in upscale-model path. It loads a selected ESRGAN/upscale model, applies it to the incoming `IMAGE`, and returns the upscaled `IMAGE` without KSampler, denoising, VAE encode/decode, latent conversion, or `PIPE` behavior.
+
+**Files:**
+- [`image_upscaler.py`](node_packages/image_upscaler/image_upscaler.py) - Node implementation
+
+**Inputs:**
+- `image` (IMAGE): Source image batch to upscale
+- `upscale_model` (COMBO): Built-in ComfyUI upscale-model choice populated from registered `upscale_models` and legacy `esrgan` model lists
+- `upscale_by` (FLOAT): Requested output scale multiplier (default: `1.5`)
+- `image_output` (COMBO): `Preview` or `Hide` preview behavior
+
+**Outputs:**
+- `image` (IMAGE): Upscaled image batch
+
+**Behavior Notes:**
+- Uses ComfyUI's `Load Upscale Model` and `Upscale Image (using Model)` nodes through reflection helpers.
+- If the selected model's native output scale differs from `upscale_by`, the model-upscaled image is resized to the exact requested target dimensions.
+- Raises targeted runtime errors when the upscale model cannot be loaded or ComfyUI's image-upscale node is unavailable.
+
+**Category:** `Veilance/Image`
+
+---
+
 ### Prompt Cleaner
 
-**Location:** [`prompt_cleaner/`](prompt_cleaner/)
+**Location:** [`node_packages/prompt_cleaner/`](node_packages/prompt_cleaner/)
 
 A utility node for cleaning comma-separated prompt tags with configurable normalization options.
 
 **Files:**
-- [`prompt_cleaner.py`](prompt_cleaner/prompt_cleaner.py) - Node implementation
+- [`prompt_cleaner.py`](node_packages/prompt_cleaner/prompt_cleaner.py) - Node implementation
 
 **Inputs:**
 - `prompt` (STRING): Prompt text to clean
@@ -283,14 +314,15 @@ A utility node for cleaning comma-separated prompt tags with configurable normal
 
 ### LLM Text Generator
 
-**Location:** [`nano_gpt/`](nano_gpt/)
+**Location:** [`node_packages/nano_gpt/`](node_packages/nano_gpt/)
 
 Two text/vision prompt generation nodes that call OpenAI-compatible `/chat/completions` endpoints with provider presets, retry handling, and optional image input.
 
 **Files:**
-- [`nano_gpt.py`](nano_gpt/nano_gpt.py) - Node implementation and alias API route registration
-- [`alias_store.py`](nano_gpt/alias_store.py) - Alias persistence + keyring secret handling
-- [`aliases.json`](nano_gpt/aliases.json) - Alias metadata store (non-secret; created on first save)
+- [`nano_gpt.py`](node_packages/nano_gpt/nano_gpt.py) - Node implementation and alias API route registration
+- [`alias_store.py`](node_packages/nano_gpt/alias_store.py) - Alias persistence + keyring secret handling
+- [`aliases.local.json`](node_packages/nano_gpt/aliases.local.json) - Ignored runtime alias metadata store (created on first save)
+- [`aliases.example.json`](node_packages/nano_gpt/aliases.example.json) - Example alias metadata shape for repository/default configuration
 
 **Nodes:**
 - `LLM Text Generator (Manual)`
@@ -328,12 +360,12 @@ Two text/vision prompt generation nodes that call OpenAI-compatible `/chat/compl
 
 ### Save Image (CivitAI Metadata)
 
-**Location:** [`save_image_civitai/`](save_image_civitai/)
+**Location:** [`node_packages/save_image_civitai/`](node_packages/save_image_civitai/)
 
 An output node that saves image batches as PNG, JPG, or WEBP while embedding CivitAI-compatible generation metadata and optional Comfy workflow metadata.
 
 **Files:**
-- [`save_image_civitai.py`](save_image_civitai/save_image_civitai.py) - Node implementation
+- [`save_image_civitai.py`](node_packages/save_image_civitai/save_image_civitai.py) - Node implementation
 
 **Inputs:**
 - `images` (IMAGE): Image batch to save
@@ -373,143 +405,14 @@ An output node that saves image batches as PNG, JPG, or WEBP while embedding Civ
 
 ---
 
-### Film Grain
-
-**Location:** [`film_grain/`](film_grain/)
-
-A torch-first post-processing node that adds adaptive film-style grain with stock presets, deterministic seeded noise, tone/detail-aware placement, clumped band-limited grain structure, and restrained per-channel chroma imbalance so the result reads more like scanned film than flat digital noise.
-
-**Files:**
-- [`film_grain.py`](film_grain/film_grain.py) - Node implementation and grain synthesis helpers
-
-**Inputs:**
-- `image` (IMAGE): Input image batch
-- `stock` (COMBO): Grain profile preset (`35mm color`, `35mm b&w`, `16mm color`, `pushed 800`)
-- `amount` (FLOAT): Overall grain intensity
-- `grain_size` (FLOAT): Grain size multiplier applied on top of the stock preset
-- `color_amount` (FLOAT): Scales chroma grain contribution for color stocks
-- `seed` (INT): Deterministic grain seed with control-after-generate enabled
-
-**Optional Inputs:**
-- `clumpiness_scale` (FLOAT): Multiplies the stock's built-in clumping/aggregation strength; `1.0` preserves the preset look
-- `resolution_response_scale` (FLOAT): Multiplies how strongly the stock adapts grain size to image resolution; `1.0` preserves the preset look
-
-**Outputs:**
-- `image` (IMAGE): Image with film grain applied
-
-**Behavior:**
-- Builds grain from band-limited seeded noise layers plus a clump envelope so the texture has spatial structure instead of single-pixel white noise
-- Applies most of the grain as luminance variation, with optional restrained chroma grain for color stocks using stock-specific channel imbalance
-- Adapts grain visibility by luminance and local detail so highlights roll off, midtones carry more grain, and busy edges get less grain
-- Scales effective grain size mildly with image resolution so the grain character changes more naturally across output sizes
-- Keeps output clamped to `[0, 1]` and preserves batch/image tensor shape
-
-**Category:** `Veilance/Image`
-
----
-
-### Jpegify
-
-**Location:** [`image_artifacts/`](image_artifacts/)
-
-A post-processing node that simulates JPEG re-encoding artifacts in memory, with one main amount control and a small set of expert options for quality range, repeated compression passes, and chroma subsampling behavior.
-
-**Files:**
-- [`image_artifacts.py`](image_artifacts/image_artifacts.py) - Node implementation and JPEG encode/decode helpers
-
-**Inputs:**
-- `image` (IMAGE): Input image batch
-- `amount` (FLOAT): Main artifact intensity control; `0.0` short-circuits and returns the original image
-- `quality_min` (INT): Lowest JPEG quality used when `amount` approaches `1.0`
-- `quality_max` (INT): Highest JPEG quality used near low nonzero `amount` values
-- `passes` (INT): Number of repeated JPEG round-trips at the computed quality
-- `chroma_subsampling` (COMBO): `auto`, `4:2:0`, or `4:4:4`
-
-**Outputs:**
-- `image` (IMAGE): Image batch with JPEG-style compression artifacts applied
-
-**Behavior:**
-- Maps `amount` through a nonlinear curve to interpolate between `quality_max` and `quality_min`
-- Uses in-memory Pillow JPEG encode/decode passes rather than approximating artifacts with convolutions
-- Processes RGB channels through JPEG while preserving alpha or any extra non-RGB channels unchanged
-- Treats single-channel and uncommon low-channel tensors as grayscale-like input, then restores the original channel count
-- Keeps output clamped to `[0, 1]` and preserves batch shape and tensor dtype
-- Raises a clear runtime error if Pillow or numpy are unavailable at runtime
-
-**Category:** `Veilance/Image`
-
----
-
-### Image Sharpen
-
-**Location:** [`image_sharpen/`](image_sharpen/)
-
-A small set of image enhancement nodes for post-processing ComfyUI image tensors with full-frame, unsharp-mask, and edge-aware sharpening.
-
-**Files:**
-- [`image_sharpen.py`](image_sharpen/image_sharpen.py) - Node implementations and shared image-processing helpers
-
-**Nodes:**
-
-#### Sharpen
-
-**Inputs:**
-- `image` (IMAGE): Input image batch
-- `strength` (FLOAT): Blend amount for the fixed 3x3 sharpen kernel
-
-**Outputs:**
-- `image` (IMAGE): Sharpened image batch
-
-**Behavior:**
-- Applies a classic 3x3 sharpen kernel in torch
-- Blends the sharpened result back into the original image using `strength`
-- Short-circuits to the original image when `strength <= 0`
-
-#### Unsharp Mask
-
-**Inputs:**
-- `image` (IMAGE): Input image batch
-- `radius` (FLOAT): Blur radius used to extract detail
-- `amount` (FLOAT): Detail amplification amount
-- `threshold` (FLOAT): Luminance-detail threshold gate in `[0, 1]`
-
-**Outputs:**
-- `image` (IMAGE): Unsharp-masked image batch
-
-**Behavior:**
-- Builds a blurred image using torch Gaussian blur with a Pillow fallback path
-- Computes detail as `image - blurred`
-- Uses luminance-based threshold gating to suppress low-contrast sharpening
-- Short-circuits to the original image when `radius <= 0` or `amount <= 0`
-
-#### Edge Sharpen
-
-**Inputs:**
-- `image` (IMAGE): Input image batch
-- `strength` (FLOAT): Sharpen blend amount
-- `edge_threshold` (FLOAT): Edge activation threshold after Sobel normalization
-- `edge_softness` (FLOAT): Soft threshold falloff width
-
-**Outputs:**
-- `image` (IMAGE): Edge-aware sharpened image batch
-
-**Behavior:**
-- Reuses the fixed sharpen kernel to build a sharpened candidate
-- Detects edges from luminance using Sobel filters
-- Applies sharpening primarily where edge strength exceeds the configured threshold
-
-**Category:** `Veilance/Image/Sharpen`
-
----
-
 ### Resolution Selector
 
-**Location:** [`resolution_selector/`](resolution_selector/)
+**Location:** [`node_packages/resolution_selector/`](node_packages/resolution_selector/)
 
 A utility node that calculates width and height dimensions based on a target pixel budget (`base_resolution²`) and aspect ratio, with configurable alignment and model-aware sizing profiles.
 
 **Files:**
-- [`resolution_selector.py`](resolution_selector/resolution_selector.py) - Node implementation
+- [`resolution_selector.py`](node_packages/resolution_selector/resolution_selector.py) - Node implementation
 
 **Inputs:**
 - `base_resolution` (INT): Base resolution (default: 1024, range: 64-8192, step: 64)
@@ -529,15 +432,15 @@ A utility node that calculates width and height dimensions based on a target pix
 
 ### Global Workflow Controls & Variables
 
-**Location:** [`workflow_utils/`](workflow_utils/)
+**Location:** [`node_packages/workflow_utils/`](node_packages/workflow_utils/)
 
 Utility nodes for graph-wide sampler/scheduler, seed coordination, named value reuse, and graph-aware filename extraction for MODEL/CLIP/VAE sources.
 
 **Files:**
-- [`global_nodes.py`](workflow_utils/global_nodes.py) - Backend node definitions
-- [`variable_nodes.py`](workflow_utils/variable_nodes.py) - Named set/get variable nodes
-- [`source_filename_nodes.py`](workflow_utils/source_filename_nodes.py) - Graph-aware source filename extraction
-- [`registry.py`](workflow_utils/registry.py) - Workflow-utils node registration
+- [`global_nodes.py`](node_packages/workflow_utils/global_nodes.py) - Backend node definitions
+- [`variable_nodes.py`](node_packages/workflow_utils/variable_nodes.py) - Named set/get variable nodes
+- [`source_filename_nodes.py`](node_packages/workflow_utils/source_filename_nodes.py) - Graph-aware source filename extraction
+- [`registry.py`](node_packages/workflow_utils/registry.py) - Workflow-utils node registration
 - [`js/global_controls.js`](js/global_controls.js) - Frontend graph sync for matching widgets
 
 **Nodes:**
@@ -568,13 +471,16 @@ Utility nodes for graph-wide sampler/scheduler, seed coordination, named value r
 
 ### Prompt Selector
 
-**Location:** [`prompt_selector/`](prompt_selector/)
+**Location:** [`node_packages/prompt_selector/`](node_packages/prompt_selector/)
 
 A dynamic node system that generates one node per category folder. Each category folder in `data/` becomes its own node, with each prompt file (YAML/CSV/JSON) becoming a dropdown widget.
 
 **Files:**
-- [`prompt_selector.py`](prompt_selector/prompt_selector.py) - Node factory and API route registration
-- [`file_utils.py`](prompt_selector/file_utils.py) - File loading utilities for YAML/CSV/JSON parsing
+- [`prompt_selector.py`](node_packages/prompt_selector/prompt_selector.py) - Node factory and API route registration
+- [`parsers.py`](node_packages/prompt_selector/parsers.py) - YAML/CSV/JSON parsing, shared prompt-entry data types, and prompt-file constants
+- [`cache.py`](node_packages/prompt_selector/cache.py) - Category discovery, prompt-file loading, dropdown indexing, cache lifecycle, and prompt lookup
+- [`watcher.py`](node_packages/prompt_selector/watcher.py) - Optional watchdog integration for prompt-folder invalidation
+- [`file_utils.py`](node_packages/prompt_selector/file_utils.py) - Compatibility export surface for existing imports
 - [`data/prompts/`](data/prompts/) - Category folders containing prompt files
 
 **Frontend:**
@@ -679,27 +585,25 @@ See [`requirements.txt`](requirements.txt):
 
 ## Development Guidelines
 
+### Local Validation
+
+Run the pure unit tests and syntax/import compilation check after code changes:
+
+```bash
+python -m unittest discover -s tests
+python -m compileall -q -x "(\\.venv|\\.git)" .
+```
+
 ### Adding a New Node
 
-1. Create a new directory: `new_node_name/`
-2. Create `new_node_name/__init__.py`:
+1. Create a new directory: `node_packages/new_node_name/`
+2. Create `node_packages/new_node_name/__init__.py`:
    ```python
    from .new_node_name import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
    __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
    ```
-3. Create `new_node_name/new_node_name.py` with the node class
-4. Import and merge mappings in root `__init__.py`:
-   ```python
-   from .new_node_name import (
-       NODE_CLASS_MAPPINGS as NEW_NODE_MAPPINGS,
-       NODE_DISPLAY_NAME_MAPPINGS as NEW_NODE_DISPLAY_MAPPINGS,
-   )
-   
-   NODE_CLASS_MAPPINGS = {
-       ...
-       **NEW_NODE_MAPPINGS,
-   }
-   ```
+3. Create `node_packages/new_node_name/new_node_name.py` with the node class
+4. Add `"new_node_name"` to `_NODE_PACKAGE_ORDER` in root `__init__.py`; the guarded loader imports packages from `node_packages/`.
 
 ### Node Class Structure
 

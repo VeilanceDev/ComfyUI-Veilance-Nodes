@@ -9,7 +9,7 @@ import traceback
 
 def _load_node_package(module_name: str):
     try:
-        module = import_module(f".{module_name}", __name__)
+        module = import_module(f".node_packages.{module_name}", __name__)
     except Exception as exc:
         print(
             f"[ComfyUI-Veilance-Nodes] Skipping node package '{module_name}' "
@@ -46,13 +46,10 @@ _NODE_PACKAGE_ORDER = [
     "lora_stack",
     "nano_gpt",
     "image_loader",
+    "image_upscaler",
     "save_image_civitai",
-    "image_sharpen",
-    "film_grain",
-    "image_artifacts",
     "text_utils",
     "math_expression",
-    "image_adjustments",
     "workflow_utils",
 ]
 

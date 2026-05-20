@@ -31,17 +31,11 @@ pip install -r requirements.txt
 - `LoRA Stack`
 - `LLM Text Generator (Manual)` (`Veilance/Utils/Prompts`)
 - `LLM Text Generator (Alias)` (`Veilance/Utils/Prompts`)
+- `Load Image (Upload or URL)` (`Veilance/Image`)
+- `Image Upscaler` (`Veilance/Image`)
 - `Save Image (CivitAI Metadata)` (`Veilance/Image`)
-- `Film Grain` (`Veilance/Image`)
-- `Jpegify` (`Veilance/Image`)
-- `Sharpen` (`Veilance/Image/Sharpen`)
-- `Unsharp Mask` (`Veilance/Image/Sharpen`)
-- `Edge Sharpen` (`Veilance/Image/Sharpen`)
 - `String Combiner` (`Veilance/Utils/Prompts`)
 - `Text Search & Replace` (`Veilance/Utils/Prompts`)
-- `Vignette` (`Veilance/Image`)
-- `Basic Color Adjust` (`Veilance/Image`)
-- `Crop to Ratio` (`Veilance/Image`)
 - `Global Sampler + Scheduler` (`Veilance/Utils`)
 - `Global Seed` (`Veilance/Utils`)
 - `Any Switch` (`Veilance/Utils`)
@@ -49,8 +43,11 @@ pip install -r requirements.txt
 - `Set Variable` (`Veilance/Utils`)
 - `Get Variable` (`Veilance/Utils`)
 - `Image Size & Empty Latent` (`Veilance/Utils`)
+- `Source Filename` (`Veilance/Utils`)
 
 `HiRes Fix` is a refine-stage sampler for existing latents or images. It can either upscale the latent directly by factor or optionally decode, run a built-in ComfyUI upscale model such as `ultrasharp_x4.pt`, re-encode, and then apply a denoise pass at the higher resolution.
+
+`Image Upscaler` is the image-only path for ESRGAN/upscale models. It accepts an `IMAGE`, selected upscale model, and scale factor such as `1.5`, returns only an upscaled `IMAGE`, and does not run denoising, KSampler, latent conversion, or PIPE logic.
 
 ## Prompt Selector Data
 
@@ -71,12 +68,13 @@ Current extensions:
 - `js/prompt_selector.js`
 - `js/lora_stack.js`
 - `js/nano_gpt.js`
+- `js/image_loader.js`
 - `js/global_controls.js`
 - `js/text_utils.js`
 
 ## Workflow Utils Structure
 
-`workflow_utils/` is split by concern so small utility nodes can evolve without accumulating unrelated logic in one file:
+`node_packages/workflow_utils/` is split by concern so small utility nodes can evolve without accumulating unrelated logic in one file:
 
 - `global_nodes.py`: `Global Sampler + Scheduler` and `Global Seed`
 - `switch_nodes.py`: `Any Switch` nodes
@@ -98,7 +96,7 @@ The LLM text generator is split into two nodes:
 
 Alias data model:
 
-- Non-secret alias settings (`api_provider`, `custom_api_url`, `model`, key-source metadata) are stored in `nano_gpt/aliases.json`
+- Runtime alias settings are written to ignored `node_packages/nano_gpt/aliases.local.json`; `node_packages/nano_gpt/aliases.example.json` documents the file shape
 - API keys are stored in OS keychain via Python `keyring` (not in workflow JSON)
 - `key_source` can be `keyring`, `env` (from env var name), or `none`
 - Generation controls (temperature, max tokens, top-p, penalties, response format) remain on the node widgets for both nodes
@@ -113,8 +111,12 @@ Open the alias manager from:
 - `watchdog` is optional but enables auto-refresh for prompt file changes.
 - `pyyaml` is optional but required for YAML prompt files.
 - `keyring` is optional but required for encrypted API key storage in LLM aliases.
-- `Film Grain` uses deterministic seeded grain with tone-aware masking, clumped spatial structure, and stock-specific chroma variation rather than plain per-pixel noise.
-- `Film Grain` also exposes optional `clumpiness_scale` and `resolution_response_scale` controls for per-node tuning while keeping stock defaults at `1.0`.
-- `Jpegify` simulates JPEG re-encoding artifacts in memory with adjustable intensity, pass count, and chroma subsampling.
+
+## Local Validation
+
+```bash
+python -m unittest discover -s tests
+python -m compileall -q -x "(\\.venv|\\.git)" .
+```
 
 For detailed architecture and development notes, see [`project.md`](project.md).

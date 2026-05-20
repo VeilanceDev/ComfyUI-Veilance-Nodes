@@ -9,6 +9,10 @@ venv/
 # Editor/project local files
 .vscode/
 
+# Runtime/user configuration
+node_packages/nano_gpt/aliases.local.json
+node_packages/nano_gpt/aliases.json
+
 # OS files
 .DS_Store
 Thumbs.db
