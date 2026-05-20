@@ -39,6 +39,7 @@ _NODE_PACKAGE_ORDER = [
     "prompt_cleaner",
     "pipe_ksampler",
     "hires_fix",
+    "facedetailer_segm",
     "pipe_builder",
     "pipe_router",
     "sampler_presets",

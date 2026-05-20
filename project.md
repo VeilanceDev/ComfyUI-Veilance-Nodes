@@ -262,6 +262,42 @@ A pipe-aware refine node for second-pass high-resolution sampling. It accepts an
 
 ---
 
+### Face Detailer (SEGM Pipe)
+
+**Location:** [`node_packages/facedetailer_segm/`](node_packages/facedetailer_segm/)
+
+A pipe-aware wrapper around ComfyUI Impact Pack segmentation detailing. It accepts a `SEGM_DETECTOR`, filters detected segments by label patterns, forwards Impact Pack wildcard syntax to `DetailerForEach.do_detail`, and re-encodes the refined image into the output `PIPE`.
+
+**Files:**
+- [`facedetailer_segm.py`](node_packages/facedetailer_segm/facedetailer_segm.py) - Node implementation
+
+**Inputs:**
+- `image` (IMAGE): Source image batch to refine
+- `segm_detector` (SEGM_DETECTOR): Segmentation detector, typically loaded through Impact Subpack `UltralyticsDetectorProvider`
+- `target_labels` (STRING): Comma/newline-separated labels to keep; supports `*` and `?`, with empty or `*` matching all detections
+- `wildcard` (STRING): Impact Detailer wildcard text, including `[ASC]`, `[DSC]`, `[ASC-SIZE]`, `[DSC-SIZE]`, `[RND]`, `[LAB]`, `[SEP]`, `[SKIP]`, `[STOP]`, and `[CONCAT]`
+- `threshold`, `dilation`, `crop_factor`, `drop_size`: SEGM detector controls
+- `guide_size`, `guide_size_for`, `max_size`, `steps`, `cfg`, `sampler_name`, `scheduler`, `denoise`, `feather`, `noise_mask`, `force_inpaint`, `cycle`, `seed`: Impact detailer/sampler controls
+- `image_output` (COMBO): `Preview` or `Hide` preview behavior
+- `pipe` (PIPE, optional): Pipe fallback source
+- `model`, `clip`, `vae`, `positive`, `negative` (optional): Override the corresponding `PIPE` slots
+- `detailer_hook`, `scheduler_func_opt` (optional): Impact Pack detailer extension inputs
+
+**Outputs:**
+- `image` (IMAGE): Full refined image
+- `pipe` (PIPE): Pipe tuple `(model, clip, vae, positive, negative, latent, seed, ...)`, with `latent` replaced by the VAE-encoded refined image
+- `mask` (MASK): Combined mask from the filtered SEGS, or an all-zero mask when no segment matches
+- `cropped_refined` (IMAGE list): Cropped refined segment images returned as `OUTPUT_IS_LIST`
+
+**Behavior Notes:**
+- Explicit model/conditioning inputs take precedence over values from `PIPE`.
+- Extra `PIPE` tail values after slot 6 are preserved unchanged.
+- Impact Pack is imported at execution time and missing Impact/SEGM support raises a targeted runtime error.
+
+**Category:** `Veilance/Sampling`
+
+---
+
 ### Image Upscaler
 
 **Location:** [`node_packages/image_upscaler/`](node_packages/image_upscaler/)
@@ -580,6 +616,10 @@ See [`requirements.txt`](requirements.txt):
 - `pyyaml>=6.0` - For YAML file parsing (optional, CSV/JSON work without it)
 - `watchdog>=3.0` - For auto-refresh on file changes (optional)
 - `keyring>=25.0` - For encrypted OS keychain storage of LLM alias API keys (optional)
+
+External ComfyUI node dependencies:
+- ComfyUI Impact Pack - required at runtime by `Face Detailer (SEGM Pipe)` for SEGS mask/detailing helpers
+- ComfyUI Impact Subpack or another compatible provider - required to supply `SEGM_DETECTOR` models such as Ultralytics segmentation models
 
 ---
 
